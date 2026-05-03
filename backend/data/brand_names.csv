@@ -1,0 +1,424 @@
+brand,generic,category
+crocin,paracetamol,analgesic
+dolo 650,paracetamol,analgesic
+calpol,paracetamol,analgesic
+combiflam,ibuprofen paracetamol,analgesic
+brufen,ibuprofen,analgesic
+vovran,diclofenac,analgesic
+zerodol,aceclofenac,analgesic
+disprin,aspirin,analgesic
+meftal spas,mefenamic acid dicycloverine,analgesic
+ultracet,tramadol paracetamol,analgesic
+pantop,pantoprazole,ppi
+pan,pantoprazole,ppi
+rablet,rabeprazole,ppi
+omez,omeprazole,ppi
+esomac,esomeprazole,ppi
+lanzol,lansoprazole,ppi
+thyronorm,levothyroxine,hormone
+eltroxin,levothyroxine,hormone
+glycomet,metformin,antidiabetic
+glyciphage,metformin,antidiabetic
+amaryl,glimepiride,antidiabetic
+janumet,sitagliptin metformin,antidiabetic
+galvus,vildagliptin,antidiabetic
+forxiga,dapagliflozin,antidiabetic
+ecosprin,aspirin,antiplatelet
+ecosprin av,aspirin atorvastatin,antiplatelet
+clopilet,clopidogrel,antiplatelet
+plavix,clopidogrel,antiplatelet
+atorva,atorvastatin,statin
+rosuvas,rosuvastatin,statin
+lipitor,atorvastatin,statin
+telma,telmisartan,antihypertensive
+losar,losartan,antihypertensive
+amlopress,amlodipine,antihypertensive
+metolar,metoprolol,antihypertensive
+aten,atenolol,antihypertensive
+augpen,amoxicillin clavulanic acid,antibiotic
+mox,amoxicillin,antibiotic
+azee,azithromycin,antibiotic
+cefix,cefixime,antibiotic
+taxim,cefotaxime,antibiotic
+levoflox,levofloxacin,antibiotic
+ciplox,ciprofloxacin,antibiotic
+oflox,ofloxacin,antibiotic
+zifi,cefixime,antibiotic
+monocef,ceftriaxone,antibiotic
+cetzine,cetirizine,antihistamine
+allegra,fexofenadine,antihistamine
+levocet,levocetirizine,antihistamine
+montair,montelukast,antiallergic
+montair lc,montelukast levocetirizine,antiallergic
+bilastine,bilastine,antihistamine
+benadryl,diphenhydramine,antihistamine
+corex,codeine chlorpheniramine,cough
+grilinctus,dextromethorphan,cough
+ascaril,dextromethorphan guaifenesin,cough
+duolin,ipratropium salbutamol,bronchodilator
+metosartan,telmisartan,antihypertensive
+gemcal gold,calcium vitamin d supplement,supplement
+asthalin,salbutamol,bronchodilator
+budecort,budesonide,steroid
+seroflo,salmeterol fluticasone,bronchodilator
+foracort,formoterol budesonide,bronchodilator
+insulatard,insulin,antidiabetic
+lantus,insulin glargine,antidiabetic
+novorapid,insulin aspart,antidiabetic
+volini,diclofenac topical,analgesic
+moov,diclofenac methyl salicylate,analgesic
+zandu balm,herbal analgesic,analgesic
+gelusil,magaldrate simethicone,antacid
+digene,aluminium magnesium hydroxide,antacid
+gaviscon,sodium alginate,antacid
+dulcolax,bisacodyl,laxative
+lactulose,lactulose,laxative
+evion,vitamin e,supplement
+becosules,vitamin b complex,supplement
+revital,multivitamin,supplement
+supradyn,multivitamin,supplement
+neurobion,vitamin b complex,supplement
+shelcal,calcium vitamin d,supplement
+calcirol,vitamin d3,supplement
+folvite,folic acid,supplement
+feronia,iron supplement,supplement
+dexorange,iron folic acid,supplement
+rantac,ranitidine,h2 blocker
+famocid,famotidine,h2 blocker
+buscopan,hyoscine butylbromide,antispasmodic
+cyclopam,dicycloverine,antispasmodic
+meftal,mefenamic acid,analgesic
+sumo,paracetamol nimesulide,analgesic
+nise,nimesulide,analgesic
+betnesol,betamethasone,steroid
+wysolone,prednisolone,steroid
+medrol,methylprednisolone,steroid
+dexona,dexamethasone,steroid
+augmentin,amoxicillin clavulanic acid,antibiotic
+claribid,clarithromycin,antibiotic
+erythrocin,erythromycin,antibiotic
+flagyl,metronidazole,antibiotic
+tiniba,tinidazole,antibiotic
+albendazole,albendazole,anthelmintic
+ivermectin,ivermectin,antiparasitic
+doxicip,doxycycline,antibiotic
+vibramycin,doxycycline,antibiotic
+rifagut,rifaximin,antibiotic
+rifampicin,rifampicin,antibiotic
+ethambutol,ethambutol,antibiotic
+pyrazinamide,pyrazinamide,antibiotic
+isoniazid,isoniazid,antibiotic
+warfarin,warfarin,anticoagulant
+xarelto,rivaroxaban,anticoagulant
+eliquis,apixaban,anticoagulant
+heparin,heparin,anticoagulant
+clexane,enoxaparin,anticoagulant
+ondem,ondansetron,antiemetic
+vomikind,ondansetron,antiemetic
+domstal,domperidone,antiemetic
+perinorm,metoclopramide,antiemetic
+atarax,hydroxyzine,antihistamine
+alprax,alprazolam,anxiolytic
+lonazep,clonazepam,anxiolytic
+restyl,alprazolam,anxiolytic
+zepose,zolpidem,sedative
+stilnoct,zolpidem,sedative
+sertraline,sertraline,antidepressant
+fluoxetine,fluoxetine,antidepressant
+escitalopram,escitalopram,antidepressant
+paroxetine,paroxetine,antidepressant
+venlafaxine,venlafaxine,antidepressant
+duloxetine,duloxetine,antidepressant
+gabapin,gabapentin,neuropathic
+pregaba,pregabalin,neuropathic
+tegretol,carbamazepine,antiepileptic
+valparin,valproate,antiepileptic
+levipil,levetiracetam,antiepileptic
+keppra,levetiracetam,antiepileptic
+topamax,topiramate,antiepileptic
+naprosyn,naproxen,analgesic
+napra,naproxen,analgesic
+ketorol,ketorolac,analgesic
+ketoflam,ketorolac,analgesic
+indocap,indomethacin,analgesic
+dicloran,diclofenac,analgesic
+flexon,ibuprofen paracetamol,analgesic
+dolowin,paracetamol tramadol,analgesic
+movexx,etoricoxib,analgesic
+etoshine,etoricoxib,analgesic
+etova,etodolac,analgesic
+zoxan,loxoprofen,analgesic
+rabium,rabeprazole,ppi
+pariet,rabeprazole,ppi
+sompraz,esomeprazole,ppi
+nexpro,esomeprazole,ppi
+lanzor,lansoprazole,ppi
+prevacid,lansoprazole,ppi
+glucophage,metformin,antidiabetic
+metlong,metformin,antidiabetic
+glynase,glipizide,antidiabetic
+glucotrol,glipizide,antidiabetic
+trajenta,linagliptin,antidiabetic
+jardiance,empagliflozin,antidiabetic
+invokana,canagliflozin,antidiabetic
+diamicron,gliclazide,antidiabetic
+glucobay,acarbose,antidiabetic
+lipaglyn,saroglitazar,antidiabetic
+cardace,ramipril,antihypertensive
+ramistar,ramipril,antihypertensive
+enalapril,enalapril,antihypertensive
+vasotec,enalapril,antihypertensive
+micardis,telmisartan,antihypertensive
+cozaar,losartan,antihypertensive
+norvasc,amlodipine,antihypertensive
+betaloc,metoprolol,antihypertensive
+inderal,propranolol,antihypertensive
+lasix,furosemide,diuretic
+torsemide,torsemide,diuretic
+dyazide,triamterene hydrochlorothiazide,diuretic
+augmentin duo,amoxicillin clavulanic acid,antibiotic
+clavam,amoxicillin clavulanic acid,antibiotic
+amoxyclav,amoxicillin clavulanic acid,antibiotic
+sumamed,azithromycin,antibiotic
+zithromax,azithromycin,antibiotic
+cefspan,cefixime,antibiotic
+suprax,cefixime,antibiotic
+cefurox,cefuroxime,antibiotic
+zinacef,cefuroxime,antibiotic
+rocephin,ceftriaxone,antibiotic
+tazact,piperacillin tazobactam,antibiotic
+meronem,meropenem,antibiotic
+imipenem,imipenem,antibiotic
+noroxin,norfloxacin,antibiotic
+floxin,ofloxacin,antibiotic
+avelox,moxifloxacin,antibiotic
+tavanic,levofloxacin,antibiotic
+zyvox,linezolid,antibiotic
+cubicin,daptomycin,antibiotic
+clarinex,desloratadine,antihistamine
+zyrtec,cetirizine,antihistamine
+telfast,fexofenadine,antihistamine
+xyzal,levocetirizine,antihistamine
+singulair,montelukast,antiallergic
+ventolin,salbutamol,bronchodilator
+atrovent,ipratropium,bronchodilator
+pulmicort,budesonide,steroid
+symbicort,budesonide formoterol,bronchodilator
+advair,salmeterol fluticasone,bronchodilator
+novomix,insulin aspart protamine,antidiabetic
+humalog,insulin lispro,antidiabetic
+actrapid,insulin human,antidiabetic
+lantus solostar,insulin glargine,antidiabetic
+fastum,ketoprofen topical,analgesic
+relispray,diclofenac spray,analgesic
+counterpain,menthol methyl salicylate,analgesic
+eno,sodium bicarbonate,antacid
+maalox,aluminium magnesium hydroxide,antacid
+pepcid,famotidine,h2 blocker
+zantac,ranitidine,h2 blocker
+senokot,senna,laxative
+cremaffin,liquid paraffin milk of magnesia,laxative
+dulcoflex,bisacodyl,laxative
+limcee,vitamin c,supplement
+neurokind,vitamin b complex,supplement
+benadon,vitamin b6,supplement
+calcimax,calcium vitamin d,supplement
+ostocalcium,calcium supplement,supplement
+feroglobin,iron supplement,supplement
+haemup,iron supplement,supplement
+buscopan plus,hyoscine paracetamol,antispasmodic
+colimex,dicycloverine simethicone,antispasmodic
+spasmonil,drotaverine,antispasmodic
+drota,drotaverine,antispasmodic
+nicip,nimesulide,analgesic
+nimulid,nimesulide,analgesic
+betnovate,betamethasone,steroid
+omnacortil,prednisolone,steroid
+predmet,prednisolone,steroid
+decadron,dexamethasone,steroid
+augmentin es,amoxicillin clavulanic acid,antibiotic
+clarithro,clarithromycin,antibiotic
+erythral,erythromycin,antibiotic
+metrogyl,metronidazole,antibiotic
+fasigyn,tinidazole,antibiotic
+zentel,albendazole,anthelmintic
+ivrea,ivermectin,antiparasitic
+doxylin,doxycycline,antibiotic
+rifadin,rifampicin,antibiotic
+myambutol,ethambutol,antibiotic
+pyzina,pyrazinamide,antibiotic
+isonex,isoniazid,antibiotic
+coumadin,warfarin,anticoagulant
+pradaxa,dabigatran,anticoagulant
+savaysa,edoxaban,anticoagulant
+fragmin,dalteparin,anticoagulant
+arixtra,fondaparinux,anticoagulant
+emset,ondansetron,antiemetic
+zofer,ondansetron,antiemetic
+motilium,domperidone,antiemetic
+reglan,metoclopramide,antiemetic
+ataral,hydroxyzine,antihistamine
+xanax,alprazolam,anxiolytic
+rivotril,clonazepam,anxiolytic
+zolpidem,zolpidem,sedative
+imovane,zopiclone,sedative
+zoloft,sertraline,antidepressant
+prozac,fluoxetine,antidepressant
+lexapro,escitalopram,antidepressant
+paxil,paroxetine,antidepressant
+effexor,venlafaxine,antidepressant
+cymbalta,duloxetine,antidepressant
+neurontin,gabapentin,neuropathic
+lyrica,pregabalin,neuropathic
+carbatrol,carbamazepine,antiepileptic
+depakote,valproate,antiepileptic
+levetiracetam,levetiracetam,antiepileptic
+topiragen,topiramate,antiepileptic
+dolokind,paracetamol,analgesic
+pacimol,paracetamol,analgesic
+fevastin,paracetamol,analgesic
+ibugesic,ibuprofen,analgesic
+ibuclin,ibuprofen paracetamol,analgesic
+flexura,chlorzoxazone paracetamol,analgesic
+myospaz,chlorzoxazone,analgesic
+thiocolchicoside,thiocolchicoside,muscle relaxant
+zerodol sp,aceclofenac serratiopeptidase,analgesic
+movexx sp,aceclofenac paracetamol serratiopeptidase,analgesic
+napra d,naproxen domperidone,analgesic
+ketorol dt,ketorolac,analgesic
+dolowin plus,tramadol paracetamol,analgesic
+dolopar,paracetamol,analgesic
+pansec,pantoprazole,ppi
+pantocid,pantoprazole,ppi
+rabium d,rabeprazole domperidone,ppi
+esomac d,esomeprazole domperidone,ppi
+nexpro rd,esomeprazole domperidone,ppi
+lanzol d,lansoprazole domperidone,ppi
+met xl,metformin,antidiabetic
+glycomet gp,glimepiride metformin,antidiabetic
+glucoryl,glimepiride,antidiabetic
+amaryl m,glimepiride metformin,antidiabetic
+trajenta duo,linagliptin metformin,antidiabetic
+glyxambi,empagliflozin linagliptin,antidiabetic
+jalra,vildagliptin,antidiabetic
+jalra m,vildagliptin metformin,antidiabetic
+tenepiride,teneligliptin,antidiabetic
+zita,sitagliptin,antidiabetic
+zita met,sitagliptin metformin,antidiabetic
+telmikind,telmisartan,antihypertensive
+telma am,telmisartan amlodipine,antihypertensive
+losakind,losartan,antihypertensive
+repace,losartan,antihypertensive
+amlong,amlodipine,antihypertensive
+amlogard,amlodipine,antihypertensive
+metoprolol xl,metoprolol,antihypertensive
+betacard,metoprolol,antihypertensive
+atenolol,atenolol,antihypertensive
+atenova,atenolol,antihypertensive
+ramistar h,ramipril hydrochlorothiazide,antihypertensive
+enalapril h,enalapril hydrochlorothiazide,antihypertensive
+lasilactone,spironolactone furosemide,diuretic
+tor,torsemide,diuretic
+dytor,torsemide,diuretic
+fruselac,furosemide spironolactone,diuretic
+clavam forte,amoxicillin clavulanic acid,antibiotic
+augmentin 625,amoxicillin clavulanic acid,antibiotic
+moxclav,amoxicillin clavulanic acid,antibiotic
+azee 500,azithromycin,antibiotic
+azithral,azithromycin,antibiotic
+cefix o,cefixime ofloxacin,antibiotic
+zifi az,azithromycin cefixime,antibiotic
+taxim o,cefixime ofloxacin,antibiotic
+monocef o,cefixime ofloxacin,antibiotic
+oflox tz,ofloxacin tinidazole,antibiotic
+norflox tz,norfloxacin tinidazole,antibiotic
+ciplox tz,ciprofloxacin tinidazole,antibiotic
+levoflox tz,levofloxacin tinidazole,antibiotic
+cefspan ds,cefixime,antibiotic
+cefurox 500,cefuroxime,antibiotic
+rocephin inj,ceftriaxone,antibiotic
+meromac,meropenem,antibiotic
+tazact inj,piperacillin tazobactam,antibiotic
+linezolid,linezolid,antibiotic
+zyvoxid,linezolid,antibiotic
+montair fx,montelukast fexofenadine,antiallergic
+levocet m,montelukast levocetirizine,antiallergic
+cetzine m,montelukast cetirizine,antiallergic
+allegra m,montelukast fexofenadine,antiallergic
+telekast,montelukast,antiallergic
+asthalin respules,salbutamol,bronchodilator
+duolin respules,ipratropium salbutamol,bronchodilator
+budecort respules,budesonide,steroid
+foracort inhaler,formoterol budesonide,bronchodilator
+seroflo inhaler,salmeterol fluticasone,bronchodilator
+insugen insulin,insulin,antidiabetic
+huminsulin,insulin,antidiabetic
+novorapid flexpen,insulin aspart,antidiabetic
+lantus vial,insulin glargine,antidiabetic
+diclogel,diclofenac topical,analgesic
+relispray plus,diclofenac spray,analgesic
+volini gel,diclofenac gel,analgesic
+moov spray,diclofenac methyl salicylate,analgesic
+digene gel,aluminium magnesium hydroxide,antacid
+gelusil mps,magaldrate simethicone,antacid
+eno fruit salt,sodium bicarbonate,antacid
+gaviscon syrup,sodium alginate,antacid
+dulcoflex tab,bisacodyl,laxative
+lactifiber,lactulose,laxative
+cremaffin plus,liquid paraffin milk of magnesia,laxative
+senna tablets,senna,laxative
+revital h,multivitamin,supplement
+becosules z,vitamin b complex,supplement
+neurobion forte,vitamin b complex,supplement
+shelcal hd,calcium vitamin d,supplement
+calcirol sachet,vitamin d3,supplement
+limcee chewable,vitamin c,supplement
+dexorange syrup,iron folic acid,supplement
+ferium,iron supplement,supplement
+rantac 150,ranitidine,h2 blocker
+famocid 20,famotidine,h2 blocker
+buscopan plus tab,hyoscine paracetamol,antispasmodic
+cyclopam syrup,dicycloverine,antispasmodic
+drotin,drotaverine,antispasmodic
+meftal forte,mefenamic acid,analgesic
+sumo l,nimesulide paracetamol,analgesic
+nise mr,nimesulide tizanidine,analgesic
+betnovate cream,betamethasone,steroid
+omnacortil 10,prednisolone,steroid
+wysolone 5,prednisolone,steroid
+dexona inj,dexamethasone,steroid
+metrogyl 400,metronidazole,antibiotic
+fasigyn 500,tinidazole,antibiotic
+zentel 400,albendazole,anthelmintic
+ivrea 12,ivermectin,antiparasitic
+doxy 100,doxycycline,antibiotic
+rifagut 400,rifaximin,antibiotic
+isonex 300,isoniazid,antibiotic
+pyzina 750,pyrazinamide,antibiotic
+myambutol 800,ethambutol,antibiotic
+coumadin 5,warfarin,anticoagulant
+xarelto 10,rivaroxaban,anticoagulant
+eliquis 5,apixaban,anticoagulant
+clexane inj,enoxaparin,anticoagulant
+ondem od,ondansetron,antiemetic
+vomikind md,ondansetron,antiemetic
+domstal dt,domperidone,antiemetic
+perinorm inj,metoclopramide,antiemetic
+atarax 25,hydroxyzine,antihistamine
+alprax 0.5,alprazolam,anxiolytic
+lonazep 1,clonazepam,anxiolytic
+restyl 0.5,alprazolam,anxiolytic
+zolpidem 10,zolpidem,sedative
+zolfresh,zolpidem,sedative
+serlift,sertraline,antidepressant
+fluox,fluoxetine,antidepressant
+nexito,escitalopram,antidepressant
+parox,paroxetine,antidepressant
+venlor,venlafaxine,antidepressant
+dulane,duloxetine,antidepressant
+gabapin nt,gabapentin nortriptyline,neuropathic
+pregaba nt,pregabalin nortriptyline,neuropathic
+tegretol cr,carbamazepine,antiepileptic
+valparin chrono,valproate,antiepileptic
+levipil xr,levetiracetam,antiepileptic
+topamac,topiramate,antiepileptic

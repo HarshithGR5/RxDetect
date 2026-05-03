@@ -1,0 +1,233 @@
+You are a senior frontend architect and UI/UX designer.
+
+Build a production-grade frontend using Next.js (App Router, TypeScript) for an AI-powered Prescription Discrepancy Detection System.
+
+The system is designed for pharmacists and clinical professionals.
+
+IMPORTANT:
+
+* This is NOT an ML-focused product.
+* The system is driven by:
+
+  1. Rule-based safety checks (primary)
+  2. AI clinical reasoning (RAG + LLM)
+* Any ML components are internal and MUST NOT be highlighted in the UI.
+
+---
+
+🔥 DESIGN PHILOSOPHY
+
+The UI must feel like:
+
+* A clinical decision support system (CDSS)
+* A hospital-grade tool
+* Trustworthy, minimal, and precise
+
+Avoid:
+
+* “AI flashy startup” look
+* Overly colorful dashboards
+* Any mention of ML confidence models
+
+---
+
+🎨 VISUAL DESIGN
+
+Theme:
+
+* Clean medical interface (like EHR / pharmacy systems)
+
+Colors:
+
+* Primary: Deep Blue (#0B3C5D)
+* Secondary: Teal (#2EC4B6)
+* Status Colors:
+
+  * Red → Critical issue (Commission)
+  * Amber → Missing info (Omission)
+  * Orange → Inconsistency
+  * Gray → Illegibility
+  * Green → No issue
+
+Typography:
+
+* Inter / IBM Plex Sans
+* Highly readable, professional spacing
+
+UI Feel:
+
+* Soft shadows
+* Rounded-xl cards
+* Subtle gradients only
+* Calm and confidence-inspiring
+
+---
+
+🧱 TECH STACK
+
+* Next.js (App Router)
+* TypeScript
+* TailwindCSS
+* ShadCN UI
+* React Query (TanStack)
+* Axios
+* Framer Motion
+
+---
+
+📄 PAGES TO BUILD
+
+1. Landing Page
+
+* Headline: “AI-Assisted Prescription Safety System”
+* Focus on:
+
+  * Patient safety
+  * Error detection
+  * Clinical validation
+* Sections:
+
+  * Features (OCR, validation, AI reasoning)
+  * Workflow pipeline
+  * Trust indicators (healthcare-grade system)
+
+2. Login / Signup
+
+* Minimal, premium
+* Role-based access (pharmacist/admin/viewer)
+
+3. Dashboard
+
+* Table of prescriptions
+* Filters:
+
+  * Status
+  * Discrepancy type
+* Top metrics:
+
+  * Total processed
+  * Flagged prescriptions
+  * No discrepancy %
+
+4. Upload Page
+
+* Drag & drop
+* Clean loading + progress
+* Auto-trigger analysis
+
+5. Analysis Page (MOST IMPORTANT)
+
+Layout:
+
+* Clinical analysis dashboard
+
+Sections:
+
+LEFT:
+
+* Extracted prescription fields
+* Highlight problematic fields
+* Confidence indicators (ONLY as "data clarity", NOT ML confidence)
+
+CENTER:
+
+* Discrepancy Result
+
+  * Large status badge
+  * Clinical explanation (AI reasoning)
+  * Clear human-readable justification
+
+RIGHT:
+
+* Evidence Panel
+
+  * Guidelines / references (RAG output)
+  * Sources displayed cleanly
+
+DO NOT SHOW:
+
+* Any ML comparison
+* Any "model vs model" UI
+
+Instead show:
+
+* "System Validation Result"
+* "Clinical Reasoning"
+* "Guideline Evidence"
+
+6. Report Page
+
+* Clean PDF viewer
+* Medical report format
+
+---
+
+🧩 COMPONENTS
+
+* DiscrepancyBadge (core component)
+* ConfidenceGauge → rename to:
+  → "Clarity Indicator" (for OCR confidence)
+* UploadZone
+* FieldExtractPanel
+* EvidenceDrawer
+* StatsCard
+* StatusPill
+
+REMOVE:
+
+* MLCompare
+* SHAP explanations
+* Any ML-related UI
+
+---
+
+🔌 API INTEGRATION
+
+Use:
+
+* /prescriptions/upload
+* /analysis/run/{id}
+* /analysis/status/{job_id}
+* /analysis/result/{id}
+* /reports/generate/{id}
+* /reports/download/{id}
+
+---
+
+✨ UX DETAILS
+
+* Show:
+
+  * “Rule triggered” (if applicable)
+  * “Clinical reasoning”
+  * “Evidence sources”
+
+* Use:
+
+  * Skeleton loaders
+  * Toast notifications
+  * Smooth transitions
+
+---
+
+🎯 FINAL EXPECTATION
+
+The product must feel like:
+
+* A real hospital-grade prescription validation system
+* Designed for pharmacists, not engineers
+* Clean, aesthetic, and highly professional
+
+DO NOT:
+
+* Mention machine learning in UI
+* Show model comparisons
+* Add unnecessary complexity
+
+Focus on:
+✔ Safety
+✔ Clarity
+✔ Clinical trust
+✔ Professional design
+
+Deliver full working Next.js frontend with clean architecture and reusable components.

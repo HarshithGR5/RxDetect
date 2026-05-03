@@ -1,0 +1,31 @@
+
+> rxdetect-frontend@0.1.0 dev
+> next dev -p 5000
+
+[1G[0K  [1m[38;2;173;127;168m▲ Next.js 14.2.3[39m[22m
+  - Local:        http://localhost:5000
+  - Environments: .env.local
+
+ [32m[1m✓[22m[39m Starting...
+ [32m[1m✓[22m[39m Ready in 1584ms
+ [32m[1m✓[22m[39m Compiled /middleware in 106ms
+ [32m[1m✓[22m[39m Compiled (73 modules)
+ [37m[1m○[22m[39m Compiling / ...
+ [32m[1m✓[22m[39m Compiled / in 4.2s (1340 modules)
+ GET / [32m200[39m in 4429ms
+ GET / [32m200[39m in 827ms
+ [32m[1m✓[22m[39m Compiled in 472ms (678 modules)
+ [37m[1m○[22m[39m Compiling /login ...
+ [32m[1m✓[22m[39m Compiled /login in 1024ms (1528 modules)
+ GET /login [32m200[39m in 1229ms
+ [32m[1m✓[22m[39m Compiled /signup in 377ms (1536 modules)
+ GET /signup [32m200[39m in 542ms
+ [32m[1m✓[22m[39m Compiled in 314ms (745 modules)
+ [32m[1m✓[22m[39m Compiled in 269ms (745 modules)
+ [32m[1m✓[22m[39m Compiled in 987ms (1547 modules)
+ [33m[1m⚠[22m[39m Fast Refresh had to perform a full reload due to a runtime error.
+ GET / [32m200[39m in 146ms
+ GET / [32m200[39m in 28ms
+ [32m[1m✓[22m[39m Compiled in 1844ms (1551 modules)
+ GET / [32m200[39m in 122ms
+ GET /login [32m200[39m in 61ms
