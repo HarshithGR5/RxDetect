@@ -1,0 +1,464 @@
+{
+	"info": {
+		"_postman_id": "a8f5b1e9-a5e8-4e4a-8b0a-7e8f6a2c1d0d",
+		"name": "RxDetect API",
+		"description": "Postman collection for the RxDetect backend API.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"pharmacist@example.com\",\n    \"password\": \"securepassword123\",\n    \"full_name\": \"John Doe\",\n    \"role\": \"pharmacist\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"register"
+							]
+						},
+						"description": "Create a new user account. Roles can be `pharmacist` or `admin`."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Successful login\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+									"});",
+									"",
+									"const response = pm.response.json();",
+									"pm.collectionVariables.set(\"access_token\", response.access_token);",
+									"pm.collectionVariables.set(\"refresh_token\", response.refresh_token);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "username",
+									"value": "pharmacist@example.com",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "securepassword123",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Exchange email and password for an access token. The email goes in the `username` field.\n\nThis request saves the `access_token` to a collection variable to be used in other requests."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"me"
+							]
+						},
+						"description": "Get the details of the currently authenticated user."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for user registration, login, and token management."
+		},
+		{
+			"name": "Patients",
+			"item": [
+				{
+					"name": "Create Patient",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"full_name\": \"Jane Smith\",\n    \"mrn\": \"MRN000123\",\n    \"date_of_birth\": \"1985-05-15\",\n    \"gender\": \"Female\",\n    \"known_allergies\": \"Peanuts\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/patients/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"patients",
+								""
+							]
+						},
+						"description": "Create a new patient record."
+					},
+					"response": []
+				},
+				{
+					"name": "List Patients",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/patients/?search=smith&page=1&page_size=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"patients",
+								""
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "smith",
+									"description": "Search by name or MRN"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Get a list of patients with optional search and pagination."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Patient by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/patients/:patient_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"patients",
+								":patient_id"
+							],
+							"variable": [
+								{
+									"key": "patient_id",
+									"value": "your_patient_id_here"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{access_token}}",
+						"type": "string"
+					}
+				]
+			},
+			"description": "CRUD operations for patient records."
+		},
+		{
+			"name": "Prescriptions",
+			"item": [
+				{
+					"name": "Upload Prescription",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/prescriptions/upload?patient_id=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"prescriptions",
+								"upload"
+							],
+							"query": [
+								{
+									"key": "patient_id",
+									"value": "",
+									"description": "(Optional) Link to an existing patient ID.",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Upload a prescription image (JPEG, PNG, etc.) or a PDF. Returns a `prescription_id` to be used in other calls."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Prescription Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/prescriptions/:prescription_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"prescriptions",
+								":prescription_id"
+							],
+							"variable": [
+								{
+									"key": "prescription_id",
+									"value": "your_prescription_id_here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Analysis Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/prescriptions/:prescription_id/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"prescriptions",
+								":prescription_id",
+								"status"
+							],
+							"variable": [
+								{
+									"key": "prescription_id",
+									"value": "your_prescription_id_here"
+								}
+							]
+						},
+						"description": "Poll this endpoint to check the status of the background analysis task."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Analysis Results",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/prescriptions/:prescription_id/results",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"prescriptions",
+								":prescription_id",
+								"results"
+							],
+							"variable": [
+								{
+									"key": "prescription_id",
+									"value": "your_prescription_id_here"
+								}
+							]
+						},
+						"description": "Once the status is `analyzed`, use this endpoint to get the full discrepancy report and extracted data."
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{access_token}}",
+						"type": "string"
+					}
+				]
+			},
+			"description": "Endpoints for uploading and analyzing prescriptions."
+		},
+		{
+			"name": "Reports",
+			"item": [
+				{
+					"name": "Generate PDF Report",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/reports/generate/:prescription_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"reports",
+								"generate",
+								":prescription_id"
+							],
+							"variable": [
+								{
+									"key": "prescription_id",
+									"value": "your_prescription_id_here"
+								}
+							]
+						},
+						"description": "Generate (or re-generate) the PDF summary report for an analyzed prescription."
+					},
+					"response": []
+				},
+				{
+					"name": "Download PDF Report",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/reports/download/:prescription_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"reports",
+								"download",
+								":prescription_id"
+							],
+							"variable": [
+								{
+									"key": "prescription_id",
+									"value": "your_prescription_id_here"
+								}
+							]
+						},
+						"description": "Downloads the generated PDF file."
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{access_token}}",
+						"type": "string"
+					}
+				]
+			},
+			"description": "Endpoints for generating and downloading PDF reports."
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

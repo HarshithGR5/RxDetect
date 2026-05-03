@@ -1,0 +1,28 @@
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+backend/.env
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+frontend/out/
+
+# Generated files
+backend/generated_reports/
+backend/uploads/
+backend/ml/model/
+backend/data/faiss_index.faiss
+backend/data/faiss_metadata.json
+
+# Logs
+*.log
