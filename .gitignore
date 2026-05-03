@@ -1,28 +1,89 @@
-# IDE and OS files
-.vscode/
-.idea/
-*.swp
-*~
-.DS_Store
-
-# Python
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
 .venv/
-backend/.env
+venv/
+env/
+ENV/
+.pythonlibs/
 
-# Node
-frontend/node_modules/
-frontend/.next/
+# ── Environment & secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
 frontend/.env.local
-frontend/out/
+frontend/.env.*
+!frontend/.env.example
 
-# Generated files
-backend/generated_reports/
-backend/uploads/
-backend/ml/model/
-backend/data/faiss_index.faiss
-backend/data/faiss_metadata.json
+# ── Database / migrations cache ───────────────────────────────────────────────
+*.db
+*.sqlite3
+alembic/__pycache__/
+backend/alembic/__pycache__/
 
+# ── FAISS index (large binary files — rebuild locally with ingest script) ──────
+# Comment these out if you WANT to commit a pre-built index for teammates.
+data/faiss_index.faiss
+data/faiss_metadata.json
+
+# ── Uploaded files & generated reports ───────────────────────────────────────
+uploads/
+generated_reports/
+
+# ── ML model artefacts ────────────────────────────────────────────────────────
+ml/models/*.pkl
+ml/models/*.joblib
+ml/models/*.json
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
 # Logs
 *.log
+
+# Local changes
+rxdetect_changes/
+
+logs/
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDEs ─────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.mypy_cache/
+.ruff_cache/
+
+# ── Node / Next.js ────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.cache/
+frontend/coverage/
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Replit internals ─────────────────────────────────────────────────────────
+.replit
+replit.nix
+.local/
+attached_assets/
+zipFile.zip
+gtk-runtime.exe

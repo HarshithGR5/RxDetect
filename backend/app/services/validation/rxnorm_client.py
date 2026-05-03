@@ -126,7 +126,7 @@ def get_drug_classes(rxcui: str) -> list[str]:
     try:
         resp = requests.get(
             f"https://rxnav.nlm.nih.gov/REST/rxclass/class/byRxcui.json",
-            params={"rxcui": rxcui, "relaSource": "PHARMACIST"},
+            params={"rxcui": rxcui, "relaSource": "MESH"},
             timeout=5,
         )
         resp.raise_for_status()

@@ -16,6 +16,7 @@
   - [Environment Variables](#environment-variables)
   - [Run with Docker Compose](#run-with-docker-compose)
   - [Run Locally (without Docker)](#run-locally-without-docker)
+- [Knowledge Base — Ingesting Clinical PDFs](#knowledge-base--ingesting-clinical-pdfs)
 - [API Reference](#api-reference)
 - [Frontend Pages](#frontend-pages)
 - [AI Pipeline](#ai-pipeline)
@@ -290,6 +291,80 @@ cd frontend
 npm install
 npm run dev                        # runs on http://localhost:5000
 ```
+
+---
+
+## Knowledge Base — Ingesting Clinical PDFs
+
+The RAG system uses a FAISS vector index seeded with your clinical guideline PDFs.
+**Do not** drop PDFs into `data/guidelines/` and restart the server — the ingestion
+script must be run first so embeddings are generated and saved offline.
+
+### How large a corpus can it handle?
+
+| Scale | Details |
+|---|---|
+| Chunk size | 1000 characters with 150-char overlap (sentence-aware) |
+| Batch limit | OpenAI API limit (2048 items) is handled automatically — 12,000 chunks = 6 auto-batches |
+| Index size | FAISS IndexFlatL2 scales to 100k+ vectors on CPU; 12,000 chunks ≈ 75 MB RAM |
+| 4 PDFs / 2000 pages | ~12,000 chunks, ~75 MB index, ~30–60 min to embed (one-time, billed per token) |
+| Retrieval | Millisecond-fast at any scale using approximate nearest-neighbour search |
+
+### Step-by-step: adding your 4 clinical PDFs
+
+```bash
+# 1. Copy your PDFs into the guidelines directory
+cp /path/to/your/clinical_pharmacy_vol1.pdf  data/guidelines/
+cp /path/to/your/clinical_pharmacy_vol2.pdf  data/guidelines/
+cp /path/to/your/medicine_reference.pdf      data/guidelines/
+cp /path/to/your/who_formulary.pdf           data/guidelines/
+
+# 2. Run the ingestion script (one-time; takes 30–60 min for 2000 pages)
+#    This creates/updates data/faiss_index.faiss and data/faiss_metadata.json
+python scripts/ingest_pdfs.py
+
+# 3. Start the server — it loads the pre-built index instantly (< 5 seconds)
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Ingestion script options
+
+```bash
+# Show what's already in the index
+python scripts/ingest_pdfs.py --help
+
+# Add a single new PDF without touching the existing index
+python scripts/ingest_pdfs.py --file data/guidelines/new_drug_monographs.pdf
+
+# Use a different directory
+python scripts/ingest_pdfs.py --dir /data/my_guidelines/
+
+# Wipe the index and rebuild everything from scratch
+python scripts/ingest_pdfs.py --reset
+
+# Force re-embed even chunks that are already indexed
+python scripts/ingest_pdfs.py --force
+```
+
+### What the index tracks per chunk
+
+| Field | Example |
+|---|---|
+| `text` | The 1000-char chunk of clinical text |
+| `source` | `clinical_pharmacy_vol1.pdf \| p.142` |
+| `page` | `142` |
+| `file` | `clinical_pharmacy_vol1.pdf` |
+| `score` | `0.84` (relevance score at query time) |
+
+### Important notes
+
+- The FAISS index files (`data/faiss_index.faiss`, `data/faiss_metadata.json`) are
+  excluded from git by default (they can be hundreds of MB). Each developer runs
+  the ingest script locally once after cloning.
+- Deduplication is MD5-hash based — re-running the script on the same PDF never
+  adds duplicate vectors.
+- The server never rebuilds the index at startup if the index file already exists;
+  startup time is always fast regardless of index size.
 
 ---
 

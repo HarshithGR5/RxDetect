@@ -5,6 +5,7 @@ Normalises and cleans extracted prescription fields.
 - Fixes common OCR character substitutions
 - Normalises drug name variants and abbreviations
 - Standardises frequency / route abbreviations
+- Infers route of administration from dosage form prefix
 """
 
 import re
@@ -115,6 +116,49 @@ ROUTE_MAP: dict[str, str] = {
     "eye": "Ophthalmic",
 }
 
+# Dosage form prefix → inferred route.
+# Order matters — longer/more-specific entries must come first.
+_FORM_ROUTE_MAP: list[tuple[str, str]] = [
+    ("eye drops",   "Ophthalmic"),
+    ("ear drops",   "Otic"),
+    ("inhaler",     "Inhalation"),
+    ("injection",   "Parenteral"),
+    ("inj",         "Parenteral"),
+    ("tablet",      "PO"),
+    ("tabs",        "PO"),
+    ("tab",         "PO"),
+    ("capsule",     "PO"),
+    ("caps",        "PO"),
+    ("cap",         "PO"),
+    ("syrup",       "PO"),
+    ("suspension",  "PO"),
+    ("solution",    "PO"),
+    ("sachet",      "PO"),
+    ("powder",      "PO"),
+    ("cream",       "Topical"),
+    ("ointment",    "Topical"),
+    ("gel",         "Topical"),
+    ("lotion",      "Topical"),
+    ("patch",       "Transdermal"),
+    ("spray",       "Intranasal"),
+]
+
+
+def infer_route_from_form(drug_name: str) -> str | None:
+    """
+    Infer the route of administration from the dosage form prefix.
+    e.g. "Tab Telmisartan 40 Mg" → "PO"
+         "Inj Ceftriaxone 1g"    → "Parenteral"
+    Returns None when the form is unrecognisable.
+    """
+    if not drug_name:
+        return None
+    lower = drug_name.lower().strip()
+    for prefix, route in _FORM_ROUTE_MAP:
+        if lower.startswith(prefix):
+            return route
+    return None
+
 
 # ---------------------------------------------------
 # KNOWN DRUGS (FOR FUZZY MATCH)
@@ -220,9 +264,18 @@ def clean_extracted_fields(fields: dict) -> dict:
     for drug in cleaned.get("drugs", []) or []:
         d = dict(drug)
 
-        d["drug_name"] = clean_drug_name(d.get("drug_name", ""))
-        d["frequency"] = normalise_frequency(d.get("frequency"))
-        d["route"] = normalise_route(d.get("route"))
+        raw_name = d.get("drug_name", "")
+
+        # Infer route from dosage form prefix BEFORE the drug name is cleaned,
+        # because the prefix (Tab / Cap / Inj) is stripped by clean_drug_name.
+        if not d.get("route"):
+            inferred = infer_route_from_form(raw_name)
+            if inferred:
+                d["route"] = inferred
+
+        d["drug_name"]  = clean_drug_name(raw_name)
+        d["frequency"]  = normalise_frequency(d.get("frequency"))
+        d["route"]      = normalise_route(d.get("route"))
 
         if d.get("dose"):
             d["dose"] = re.sub(r"\s+", " ", d["dose"]).strip()
@@ -240,9 +293,6 @@ def clean_extracted_fields(fields: dict) -> dict:
     if cleaned.get("doctor_name"):
         cleaned["doctor_name"] = cleaned["doctor_name"].title().strip()
 
-    # ---------------------------
-    # 🔥 IMPORTANT FIX (YOU WERE MISSING THIS)
-    # ---------------------------
     cleaned["illegible_fields"] = list(set(cleaned.get("illegible_fields", [])))
 
     return cleaned

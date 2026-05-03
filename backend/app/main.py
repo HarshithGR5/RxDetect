@@ -26,7 +26,7 @@ _allowed_origins = [
     "http://localhost:3000",
     "http://0.0.0.0:3000",
     "http://127.0.0.1:3000",
-        # Next.js dev server
+    # Next.js dev server
     "http://localhost:5000",
     "http://0.0.0.0:5000",
     "http://127.0.0.1:5000",

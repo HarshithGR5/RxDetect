@@ -182,11 +182,24 @@ def validate_prescription_drugs(extracted_fields: dict) -> dict:
                 source=norm["source"],
             )
         else:
-            # Fall back to the cleaned raw name as-is
-            generic_components = [raw_name.lower().strip()]
+            # Use the properly CLEANED name (strips Tab/Cap/dose) not the raw string.
+            # norm["cleaned"] = e.g. "telmisartan" from "Tab Telmisartan 40 Mg"
+            # norm["fallback"] may contain combination-split components
+            fallback = norm.get("fallback") or []
+            cleaned_fallback = norm.get("cleaned", "").strip()
+
+            if fallback:
+                generic_components = fallback
+            elif cleaned_fallback:
+                generic_components = [cleaned_fallback]
+            else:
+                generic_components = [raw_name.lower().strip()]
+
             log.warning(
-                "drug.no_csv_match_using_raw",
+                "drug.no_csv_match_using_cleaned",
                 raw=raw_name,
+                cleaned=cleaned_fallback,
+                components=generic_components,
                 best_guess=norm.get("best_guess"),
                 confidence=norm.get("confidence"),
             )
