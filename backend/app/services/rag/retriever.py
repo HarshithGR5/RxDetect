@@ -8,10 +8,12 @@ from app.services.rag.vector_store import get_vector_store
 
 log = structlog.get_logger(__name__)
 
-MIN_SCORE     = 0.25    # L2-based similarity: 1/(1+dist). Lowered slightly
-                        # for large indexes where distances spread further.
+MIN_SCORE     = 0.55    # Only include genuinely relevant chunks.
 MIN_CHUNK_LEN = 80
-DEFAULT_TOP_K = 6       # increased from 5 — more context from large corpora
+DEFAULT_TOP_K = 8
+
+# Suppress off-topic evidence entirely when best score is below this
+RELEVANCE_THRESHOLD = 0.50
 
 
 def retrieve_context(query: str, top_k: int = DEFAULT_TOP_K) -> tuple[str, list[dict]]:
@@ -20,8 +22,6 @@ def retrieve_context(query: str, top_k: int = DEFAULT_TOP_K) -> tuple[str, list[
 
     Returns:
         (formatted_context_str, raw_results_list)
-
-    Each result dict contains: text, source, page, file, score.
     """
     store = get_vector_store()
 
@@ -30,6 +30,20 @@ def retrieve_context(query: str, top_k: int = DEFAULT_TOP_K) -> tuple[str, list[
         return "No clinical knowledge base available.", []
 
     results = store.search(query, top_k=top_k)
+
+    # Suppress entirely if the best match is still off-topic
+    if results and results[0]["score"] < RELEVANCE_THRESHOLD:
+        log.info(
+            "retriever.low_relevance_suppressed",
+            top_score=results[0]["score"],
+            threshold=RELEVANCE_THRESHOLD,
+            query_snippet=query[:80],
+        )
+        return (
+            "No sufficiently relevant clinical guidelines found for this prescription. "
+            "Clinical reasoning relies on FDA drug data and rule engine findings.",
+            [],
+        )
 
     filtered = [
         r for r in results
@@ -48,7 +62,7 @@ def retrieve_context(query: str, top_k: int = DEFAULT_TOP_K) -> tuple[str, list[
     for i, r in enumerate(filtered, 1):
         page_info = f" | page {r['page']}" if r.get("page") else ""
         lines.append(
-            f"[Source {i}: {r['source']}{page_info} | relevance: {r['score']:.2f}]\n"
+            f"[Source {i}: {r['source']}{page_info} | relevance: {r['score']:.0%}]\n"
             f"{r['text'][:600]}"
         )
 
@@ -63,38 +77,61 @@ def retrieve_context(query: str, top_k: int = DEFAULT_TOP_K) -> tuple[str, list[
 
 def build_prescription_query(extracted_fields: dict, validation_result: dict) -> str:
     """
-    Build a clinically meaningful query from the prescription's extracted
-    fields and drug validation results.
+    Build a focused natural-language clinical query that works well with
+    dense-passage retrieval (embedding similarity search).
 
-    Uses normalised generic names from the validation layer (not raw OCR)
-    so that brand-name drugs still hit the right guideline chunks.
+    Principle: phrase it like a clinical question a pharmacist would ask,
+    rather than a keyword list. Short, specific, semantically dense.
     """
     generic_drugs: list[str] = []
+    drug_categories: list[str] = []
+
     for d in (validation_result or {}).get("per_drug", []):
         generic_drugs.extend(d.get("clean_names", []))
+        cat = d.get("category", "")
+        if cat and cat not in drug_categories:
+            drug_categories.append(cat)
 
-    # Remove duplicates while preserving order
+    # Remove duplicates preserving order
     seen: set[str] = set()
     unique_drugs = [d for d in generic_drugs if not (d in seen or seen.add(d))]
 
-    diagnosis = extracted_fields.get("diagnosis", "")
-    age       = extracted_fields.get("patient_age")
-    route     = extracted_fields.get("route", "")
+    diagnosis   = extracted_fields.get("diagnosis", "")
+    age         = extracted_fields.get("patient_age")
+    med_history = extracted_fields.get("previous_medical_history", "") or ""
+    allergy     = extracted_fields.get("allergy_history", "") or ""
 
-    parts: list[str] = []
+    # ── Build a focused clinical question ────────────────────────────────────
+    drugs_str = " + ".join(unique_drugs) if unique_drugs else ""
+    cat_str   = ", ".join(drug_categories) if drug_categories else ""
 
-    if unique_drugs:
-        parts.append(f"Drugs: {', '.join(unique_drugs)}")
+    # Drug + category phrase
+    if drugs_str and cat_str:
+        drug_phrase = f"{drugs_str} ({cat_str})"
+    elif drugs_str:
+        drug_phrase = drugs_str
+    else:
+        drug_phrase = "prescribed medications"
+
+    # Condition phrase
+    condition_parts = []
     if diagnosis:
-        parts.append(f"Condition: {diagnosis}")
-    if route:
-        parts.append(f"Route: {route}")
+        condition_parts.append(diagnosis)
     if age:
-        parts.append(f"Patient age: {age}")
+        condition_parts.append(f"age {age}")
+    if med_history:
+        condition_parts.append(med_history)
+    condition_phrase = ", ".join(condition_parts) if condition_parts else "general use"
 
-    parts.append(
-        "dosage safety contraindications drug interactions clinical guidelines "
-        "standard dose therapeutic range adverse effects"
+    # Allergy addendum
+    allergy_clause = f" Patient has known allergy: {allergy}." if allergy else ""
+
+    # Final natural-language clinical question
+    query = (
+        f"Clinical guidelines for {drug_phrase} in {condition_phrase}: "
+        f"recommended dosage, contraindications, drug interactions, "
+        f"adverse effects, and monitoring parameters.{allergy_clause}"
     )
 
-    return ". ".join(parts)
+    log.debug("retriever.query_built", query=query)
+    return query

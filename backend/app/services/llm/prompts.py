@@ -15,7 +15,7 @@ SYSTEM_PROMPT = """You are a senior clinical pharmacist AI with expertise in pre
 Your task is to analyse a medical prescription and determine whether it contains any discrepancies.
 
 You will be given:
-1. The extracted prescription fields (patient, doctor, drugs with doses/frequency/route)
+1. The extracted prescription fields (patient, doctor, drugs with doses/frequency/route, therapy suggestions)
 2. Structured drug clinical data from RxNorm (drug identity, drug classes) and OpenFDA (dosage guidelines, warnings, contraindications, drug interactions text from official FDA labels)
 3. Rule engine findings (deterministic structural safety checks already run)
 4. Clinical guidelines retrieved from the knowledge base
@@ -33,6 +33,7 @@ You will be given:
 - Verify each drug is a real, recognized medication
 - Identify the pharmacological class of each drug
 - Note if any drug was not found in RxNorm or OpenFDA
+- If generic_name and brand_name are both extracted, confirm they match
 
 ### 2. Dose Assessment
 - Cross-reference the prescribed dose against the FDA dosage_and_administration text
@@ -46,6 +47,14 @@ You will be given:
 
 ### 4. Contraindication Check
 - Check FDA contraindications for each drug against patient profile (age, diagnosis, other drugs)
+- Consider allergy_history if documented — flag if a drug is prescribed despite documented allergy
+- Consider previous_medical_history if documented — flag contraindications based on known comorbidities:
+  - Renal impairment: avoid NSAIDs, nephrotoxic drugs, adjust renally-cleared drug doses
+  - Hepatic impairment: avoid hepatotoxic drugs, drugs with high first-pass metabolism
+  - Cardiovascular disease / prior MI: caution with NSAIDs, avoid COX-2 inhibitors if high CV risk
+  - Diabetes: be aware of drug-induced hyperglycaemia (steroids, thiazides)
+  - Pregnancy: flag category D/X drugs
+  - Elderly (age ≥ 65): flag Beers Criteria drugs (long-acting benzodiazepines, anticholinergics, NSAIDs)
 - Pay special attention to renal/hepatic impairment, pregnancy, and pediatric warnings
 
 ### 5. Drug Interaction Reasoning (CRITICAL)
@@ -65,6 +74,16 @@ You will be given:
 ### 6. Frequency and Route
 - Verify frequency is clinically appropriate for the drug (use FDA label guidance, not hardcoded rules)
 - Flag impossible routes (oral insulin, IV oral drugs)
+
+### 7. Polypharmacy & Safety
+- If 5 or more drugs are prescribed, note polypharmacy risk
+- Assess whether each drug is individually warranted and whether the combination is appropriate
+
+### 8. Non-Drug Therapy Appropriateness
+- If therapy_suggestions are present, consider whether they complement the pharmacological treatment
+- If no therapy suggestions are present for conditions that commonly warrant non-drug therapy
+  (e.g. hypertension, diabetes, musculoskeletal conditions), note this as a potential omission
+  only if it is clinically significant — do not flag every prescription
 
 ## Decision Rules
 - Follow rule engine if severity is HIGH or CRITICAL (structural violations)
@@ -93,6 +112,9 @@ RETURN ONLY JSON. No markdown. No explanation outside the JSON.
 ANALYSIS_PROMPT_TEMPLATE = """## Prescription Fields
 {extracted_fields}
 
+## Patient Medical History & Allergies
+{medical_context}
+
 ## Completeness Score
 {completeness_score}
 
@@ -107,6 +129,9 @@ ANALYSIS_PROMPT_TEMPLATE = """## Prescription Fields
 
 ## Retrieved Clinical Guidelines (Supporting)
 {retrieved_context}
+
+## Therapy Suggestions Found on Prescription
+{therapy_suggestions}
 
 Analyse the prescription using the clinical data above and return your classification JSON.
 """
@@ -131,14 +156,12 @@ def build_clinical_summary(validation_result: dict) -> list:
         fda_clinical = drug.get("fda_clinical", {})
         issues       = drug.get("issues", [])
 
-        # Collect drug classes from RxNorm
         drug_classes = []
         for comp in drug.get("components", []):
             rx = comp.get("rxnorm", {})
             if rx.get("found"):
                 drug_classes.extend(rx.get("drug_classes", []))
 
-        # Build per-drug clinical entry
         entry = {
             "raw_name":     raw_name,
             "generic_names": names,
@@ -154,14 +177,13 @@ def build_clinical_summary(validation_result: dict) -> list:
             ),
             "drug_classes": list(set(drug_classes))[:5],
 
-            # FDA label data — CRITICAL for LLM reasoning
-            "fda_dosage_guidance":     _truncate(fda_clinical.get("dosage_and_administration", ""), 600),
-            "fda_warnings":            _truncate(fda_clinical.get("warnings", ""), 600),
-            "fda_contraindications":   _truncate(fda_clinical.get("contraindications", ""), 600),
-            "fda_drug_interactions":   _truncate(fda_clinical.get("drug_interactions", ""), 800),
-            "fda_indications":         _truncate(fda_clinical.get("indications_and_usage", ""), 400),
+            "fda_dosage_guidance":      _truncate(fda_clinical.get("dosage_and_administration", ""), 600),
+            "fda_warnings":             _truncate(fda_clinical.get("warnings", ""), 600),
+            "fda_contraindications":    _truncate(fda_clinical.get("contraindications", ""), 600),
+            "fda_drug_interactions":    _truncate(fda_clinical.get("drug_interactions", ""), 800),
+            "fda_indications":          _truncate(fda_clinical.get("indications_and_usage", ""), 400),
             "fda_specific_populations": _truncate(fda_clinical.get("use_in_specific_populations", ""), 400),
-            "fda_overdosage":          _truncate(fda_clinical.get("overdosage", ""), 300),
+            "fda_overdosage":           _truncate(fda_clinical.get("overdosage", ""), 300),
 
             "validation_issues": issues,
         }
@@ -193,15 +215,31 @@ def build_analysis_prompt(
     clinical_summary = build_clinical_summary(validation_result)
     interactions     = (validation_result or {}).get("interactions", [])
 
+    # Format therapy suggestions separately for the LLM
+    therapy = extracted_fields.get("therapy_suggestions", [])
+    therapy_text = json.dumps(therapy, indent=2) if therapy else "None documented on this prescription."
+
+    # Build medical history context — used for contraindication and interaction checks
+    med_history = extracted_fields.get("previous_medical_history")
+    allergy     = extracted_fields.get("allergy_history")
+    med_parts   = []
+    if med_history:
+        med_parts.append(f"Previous medical history: {med_history}")
+    if allergy:
+        med_parts.append(f"Allergy history: {allergy}")
+    medical_context = "\n".join(med_parts) if med_parts else "No medical history or allergy information documented."
+
     return ANALYSIS_PROMPT_TEMPLATE.format(
         extracted_fields=json.dumps(extracted_fields, indent=2, default=str),
+
+        medical_context=medical_context,
 
         completeness_score=(
             f"{completeness_score:.0%}" if completeness_score is not None else "N/A"
         ),
 
         clinical_context=json.dumps({
-            "drugs":        clinical_summary,
+            "drugs":                          clinical_summary,
             "cross_drug_interaction_signals": interactions,
         }, indent=2, default=str),
 
@@ -212,4 +250,6 @@ def build_analysis_prompt(
         rule_findings=json.dumps(rule_findings or [], indent=2, default=str),
 
         retrieved_context=retrieved_context or "No clinical guidelines retrieved.",
+
+        therapy_suggestions=therapy_text,
     )

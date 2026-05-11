@@ -5,6 +5,7 @@
  * Tokens are stored in localStorage (always accessible in browser JS).
  * A thin cookie "rx_session=1" is kept solely for the Next.js middleware
  * route-guard (middleware cannot read localStorage).
+ * A second cookie "rx_role" stores the user role for server-side RBAC.
  *
  * The Axios base URL points directly at the FastAPI backend so that no
  * Next.js proxy is needed and headers are never silently dropped.
@@ -14,8 +15,6 @@ import axios, { AxiosRequestConfig } from 'axios'
 import Cookies from 'js-cookie'
 
 // ── Backend base URL ──────────────────────────────────────────────────────────
-// Set NEXT_PUBLIC_API_URL in .env.local (or Replit secrets) to override.
-// Default: same machine, port 8000.
 const BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ??
   'http://localhost:8000/api/v1'
@@ -23,13 +22,15 @@ const BASE =
 export const api = axios.create({
   baseURL: BASE,
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: false,   // we use Bearer, not session cookies
+  withCredentials: false,
 })
 
 // ── Token storage (localStorage) ─────────────────────────────────────────────
 const KEY_ACCESS  = 'rx_access'
 const KEY_REFRESH = 'rx_refresh'
+const KEY_ROLE    = 'rx_role_local'
 const COOKIE_SESSION = 'rx_session'
+const COOKIE_ROLE    = 'rx_role'
 
 function isBrowser() { return typeof window !== 'undefined' }
 
@@ -47,19 +48,30 @@ export function saveTokens(access: string, refresh: string) {
   if (!isBrowser()) return
   localStorage.setItem(KEY_ACCESS, access)
   localStorage.setItem(KEY_REFRESH, refresh)
-  // Thin cookie so Next.js middleware can protect routes server-side
   Cookies.set(COOKIE_SESSION, '1', { expires: 30, sameSite: 'lax' })
+}
+
+export function saveRole(role: string) {
+  if (!isBrowser()) return
+  localStorage.setItem(KEY_ROLE, role)
+  Cookies.set(COOKIE_ROLE, role, { expires: 30, sameSite: 'lax' })
+}
+
+export function getRole(): string | null {
+  if (!isBrowser()) return null
+  return localStorage.getItem(KEY_ROLE)
 }
 
 export function clearTokens() {
   if (!isBrowser()) return
   localStorage.removeItem(KEY_ACCESS)
   localStorage.removeItem(KEY_REFRESH)
+  localStorage.removeItem(KEY_ROLE)
   Cookies.remove(COOKIE_SESSION)
+  Cookies.remove(COOKIE_ROLE)
 }
 
 // ── Refresh mutex ─────────────────────────────────────────────────────────────
-// Prevents parallel 401s from each firing their own refresh request.
 let refreshPromise: Promise<string> | null = null
 
 async function doRefresh(): Promise<string> {
@@ -69,7 +81,6 @@ async function doRefresh(): Promise<string> {
     const rt = getRefresh()
     if (!rt) throw new Error('no_refresh_token')
 
-    // Use a fresh axios instance (no interceptors) to avoid infinite loop
     const { data } = await axios.post(
       `${BASE}/auth/refresh`,
       { refresh_token: rt },
@@ -179,10 +190,6 @@ export const reportApi = {
     api.get('/reports/', { params: { page, page_size: pageSize } }),
   generate: (prescriptionId: string) =>
     api.post(`/reports/generate/${prescriptionId}`),
-  /**
-   * Authenticated PDF download — fetches via Axios (Bearer token attached)
-   * then triggers a browser file-save dialog via a temporary blob URL.
-   */
   download: async (prescriptionId: string): Promise<void> => {
     const res = await api.get(`/reports/download/${prescriptionId}`, {
       responseType: 'blob',

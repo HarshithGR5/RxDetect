@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ShieldCheck, Eye, EyeOff, AlertCircle } from 'lucide-react'
-import { authApi } from '@/lib/api'
+import { authApi, saveRole } from '@/lib/api'
 import { setTokens } from '@/lib/auth'
 import toast from 'react-hot-toast'
 
@@ -23,18 +23,25 @@ export default function LoginPage() {
     try {
       const { data } = await authApi.login(email, password)
       setTokens(data.access_token, data.refresh_token)
+
+      // Fetch user profile to get role, then store it in cookie for middleware
+      try {
+        const me = await authApi.me()
+        if (me.data?.role) saveRole(me.data.role)
+      } catch {}
+
       toast.success('Welcome back!')
       router.push('/dashboard')
     } catch (err: any) {
       const msg = err.response?.data?.detail || 'Invalid credentials'
-      setError(msg)
+      setError(typeof msg === 'string' ? msg : JSON.stringify(msg))
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-50/30 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-50/30 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
         {/* Logo */}
         <motion.div
@@ -61,7 +68,8 @@ export default function LoginPage() {
           <p className="text-sm text-slate-400 mb-6">Access your clinical dashboard</p>
 
           {error && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700
+                            text-sm px-4 py-3 rounded-xl mb-4">
               <AlertCircle size={14} className="flex-shrink-0" />
               {error}
             </div>
@@ -95,7 +103,9 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400
+                             hover:text-slate-600 touch-manipulation"
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
                 >
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -108,10 +118,10 @@ export default function LoginPage() {
               className="btn-primary w-full"
             >
               {loading ? (
-                <span className="flex items-center gap-2">
+                <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Signing in…
-                </span>
+                </>
               ) : 'Sign in'}
             </button>
           </form>

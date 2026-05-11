@@ -1,6 +1,6 @@
 """
 worker.py
-Celery application and main async pipeline
+Celery application and main async pipeline — with checklist support.
 """
 
 from celery import Celery
@@ -45,7 +45,6 @@ def run_analysis_task(self, prescription_id: str):
             log.error("worker.prescription_not_found", id=prescription_id)
             return {"status": "failed"}
 
-        # 🔥 IDMPOTENCY CHECK (CRITICAL)
         if rx.status == PrescriptionStatus.analyzed:
             log.warning("worker.skipped_already_processed", id=prescription_id)
             return {"status": "already_processed"}
@@ -53,7 +52,7 @@ def run_analysis_task(self, prescription_id: str):
         _safe_update_status(db, rx, PrescriptionStatus.processing)
 
         # -------------------------------------------------
-        # 2. OCR
+        # 2. OCR  (includes checklist generation as second GPT call)
         # -------------------------------------------------
         from app.services.ocr.vision_extractor import extract_prescription_fields
 
@@ -61,11 +60,12 @@ def run_analysis_task(self, prescription_id: str):
 
         if ocr.get("error") or not ocr.get("extracted_fields"):
             _safe_update_status(db, rx, PrescriptionStatus.failed)
-            return {"status": "failed"}
+            return {"status": "failed", "error": ocr.get("error")}
 
-        raw_fields = ocr["extracted_fields"]
-        raw_text = ocr["raw_text"]
-        raw_conf = ocr["ocr_confidence"]
+        raw_fields     = ocr["extracted_fields"]
+        raw_text       = ocr["raw_text"]
+        raw_conf       = ocr["ocr_confidence"]
+        checklist_items = ocr.get("checklist_items", [])
 
         # -------------------------------------------------
         # 3. CLEAN
@@ -82,14 +82,14 @@ def run_analysis_task(self, prescription_id: str):
             compute_completeness_score,
         )
 
-        ocr_conf = compute_ocr_confidence(cleaned_fields, raw_conf)
+        ocr_conf    = compute_ocr_confidence(cleaned_fields, raw_conf)
         completeness = compute_completeness_score(cleaned_fields)
 
-        rx.raw_ocr_text = raw_text
-        rx.extracted_fields = cleaned_fields
-        rx.ocr_confidence = ocr_conf
+        rx.raw_ocr_text      = raw_text
+        rx.extracted_fields  = cleaned_fields
+        rx.ocr_confidence    = ocr_conf
         rx.completeness_score = completeness["completeness_score"]
-        rx.missing_fields = completeness["missing_fields"]
+        rx.missing_fields    = completeness["missing_fields"]
 
         _safe_update_status(db, rx, PrescriptionStatus.ocr_done)
 
@@ -99,7 +99,6 @@ def run_analysis_task(self, prescription_id: str):
         from app.services.validation.drug_validator import validate_prescription_drugs
 
         validation_result = validate_prescription_drugs(cleaned_fields)
-
         rx.drug_validation_result = validation_result
 
         log.info("worker.validation_done", drugs=len(validation_result.get("per_drug", [])))
@@ -119,7 +118,6 @@ def run_analysis_task(self, prescription_id: str):
         from app.services.rag.retriever import retrieve_context, build_prescription_query
 
         query = build_prescription_query(cleaned_fields, validation_result)
-
         log.info("worker.rag_query", query=query)
 
         retrieved_context, retrieved_chunks = retrieve_context(query, top_k=5)
@@ -162,21 +160,20 @@ def run_analysis_task(self, prescription_id: str):
             label=final.label,
             confidence=final.confidence,
             flags=len(final.flagged_fields),
+            checklist_items=len(checklist_items),
         )
 
         # -------------------------------------------------
-        # 11. UPSERT REPORT (FIXED)
+        # 11. UPSERT REPORT
         # -------------------------------------------------
         from app.models.discrepancy_report import DiscrepancyLabel
 
-        raw_label = final.label.strip()
-
+        raw_label  = final.label.strip()
         label_enum = None
         for member in DiscrepancyLabel:
             if member.value.lower() == raw_label.lower():
                 label_enum = member
                 break
-
         if not label_enum:
             label_enum = DiscrepancyLabel.inconsistency
 
@@ -188,46 +185,40 @@ def run_analysis_task(self, prescription_id: str):
 
         if existing:
             log.info("worker.updating_existing_report", prescription_id=rx.id)
-
-            existing.label = label_enum.value
-            existing.confidence = final.confidence
+            existing.label          = label_enum.value
+            existing.confidence     = final.confidence
             existing.rules_triggered = final.rules_triggered
-            existing.rule_label = final.rule_label
-
-            existing.llm_label = final.llm_label
+            existing.rule_label     = final.rule_label
+            existing.llm_label      = final.llm_label
             existing.llm_confidence = final.llm_confidence
-            existing.llm_reason = final.llm_reason
-
+            existing.llm_reason     = final.llm_reason
             existing.evidence_sources = final.evidence_sources
-
-            existing.ml_label = final.ml_label
-            existing.ml_confidence = final.ml_confidence
-            existing.ml_features = final.ml_features
-
-            existing.consensus = final.consensus
+            existing.ml_label       = final.ml_label
+            existing.ml_confidence  = final.ml_confidence
+            existing.ml_features    = final.ml_features
+            existing.consensus      = final.consensus
+            existing.checklist_items = checklist_items   # ← 27-param checklist
 
         else:
             log.info("worker.creating_new_report", prescription_id=rx.id)
-
             report = DiscrepancyReport(
-                prescription_id=rx.id,
-                label=label_enum.value,
-                confidence=final.confidence,
-                rules_triggered=final.rules_triggered,
-                rule_label=final.rule_label,
-                llm_label=final.llm_label,
-                llm_confidence=final.llm_confidence,
-                llm_reason=final.llm_reason,
-                evidence_sources=final.evidence_sources,
-                ml_label=final.ml_label,
-                ml_confidence=final.ml_confidence,
-                ml_features=final.ml_features,
-                consensus=final.consensus,
+                prescription_id  = rx.id,
+                label            = label_enum.value,
+                confidence       = final.confidence,
+                rules_triggered  = final.rules_triggered,
+                rule_label       = final.rule_label,
+                llm_label        = final.llm_label,
+                llm_confidence   = final.llm_confidence,
+                llm_reason       = final.llm_reason,
+                evidence_sources = final.evidence_sources,
+                ml_label         = final.ml_label,
+                ml_confidence    = final.ml_confidence,
+                ml_features      = final.ml_features,
+                consensus        = final.consensus,
+                checklist_items  = checklist_items,      # ← 27-param checklist
             )
-
             db.add(report)
 
-        # 🔥 SAFE COMMIT
         try:
             db.commit()
         except IntegrityError:
@@ -237,13 +228,14 @@ def run_analysis_task(self, prescription_id: str):
         _safe_update_status(db, rx, PrescriptionStatus.analyzed)
 
         return {
-            "status": "done",
-            "label": final.label,
+            "status":     "done",
+            "label":      final.label,
             "confidence": final.confidence,
+            "checklist":  len(checklist_items),
         }
 
     except Exception as e:
-        db.rollback()  # 🔥 CRITICAL FIX
+        db.rollback()
         log.error("worker.error", error=str(e))
         _safe_update_status(db, rx, PrescriptionStatus.failed)
         raise self.retry(exc=e, countdown=10)
@@ -252,9 +244,6 @@ def run_analysis_task(self, prescription_id: str):
         db.close()
 
 
-# -------------------------------------------------
-# SAFE STATUS UPDATE
-# -------------------------------------------------
 def _safe_update_status(db, rx, status):
     try:
         rx.status = status

@@ -1,7 +1,7 @@
 """
 prescriptions.py — API v1
 Handles upload, retrieval, analysis triggering, status polling,
-result fetching, and pharmacist feedback.
+result fetching (including checklist), and pharmacist feedback.
 """
 import shutil
 import uuid
@@ -29,15 +29,26 @@ ALLOWED_CONTENT_TYPES = {
     "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"
 }
 
-# ── Schemas ──────────────────────────────────────────────────────────────────
+
+# ── Schemas ───────────────────────────────────────────────────────────────────
 
 class FeedbackPayload(BaseModel):
     pharmacist_label: str
     feedback_note: Optional[str] = None
-    is_correct: Optional[bool] = None
+    is_correct: Optional[bool]   = None
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── RBAC helper ───────────────────────────────────────────────────────────────
+
+def _require_role(user: User, *roles: str):
+    if user.role not in roles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Access denied. Required role(s): {', '.join(roles)}. Your role: {user.role}",
+        )
+
+
+# ── Prescription lookup ───────────────────────────────────────────────────────
 
 def _get_prescription_or_404(db: Session, prescription_id: str, user: User) -> Prescription:
     rx = (
@@ -50,10 +61,15 @@ def _get_prescription_or_404(db: Session, prescription_id: str, user: User) -> P
     )
     if not rx:
         raise HTTPException(status_code=404, detail="Prescription not found")
+
+    # Viewers and pharmacists can only see their own prescriptions
+    if user.role not in ("admin",) and rx.uploaded_by != user.id:
+        raise HTTPException(status_code=403, detail="Access denied to this prescription")
+
     return rx
 
 
-# ── Routes ───────────────────────────────────────────────────────────────────
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_prescription(
@@ -62,25 +78,24 @@ async def upload_prescription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a prescription image or PDF. Returns prescription_id for further API calls."""
-    # Validate content type
+    """Upload a prescription image or PDF. Requires pharmacist or admin role."""
+    _require_role(current_user, "pharmacist", "admin")
+
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported file type: {file.content_type}. Allowed: {ALLOWED_CONTENT_TYPES}",
         )
 
-    # Validate patient if provided
     if patient_id:
         patient = db.query(Patient).filter(Patient.id == patient_id).first()
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
 
-    # Save file
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
-    ext = Path(file.filename or "upload").suffix or ".jpg"
+    ext       = Path(file.filename or "upload").suffix or ".jpg"
     file_name = f"{uuid.uuid4()}{ext}"
     file_path = upload_dir / file_name
 
@@ -92,7 +107,6 @@ async def upload_prescription(
     finally:
         file.file.close()
 
-    # Persist to DB
     rx = Prescription(
         uploaded_by=current_user.id,
         patient_id=patient_id,
@@ -105,7 +119,6 @@ async def upload_prescription(
     db.commit()
     db.refresh(rx)
 
-    # Trigger the analysis task
     from app.services.worker import run_analysis_task
     task = run_analysis_task.delay(str(rx.id))
     rx.celery_job_id = task.id
@@ -113,9 +126,9 @@ async def upload_prescription(
 
     return {
         "prescription_id": str(rx.id),
-        "status": rx.status,
-        "celery_job_id": task.id,
-        "message": "Upload successful. Analysis has been started.",
+        "status":          rx.status,
+        "celery_job_id":   task.id,
+        "message":         "Upload successful. Analysis has been started.",
     }
 
 
@@ -127,7 +140,7 @@ def list_prescriptions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List prescriptions (paginated). Admins see all; pharmacists see their own."""
+    """List prescriptions (paginated). Admins see all; others see their own."""
     q = db.query(Prescription).filter(Prescription.deleted_at.is_(None))
 
     if current_user.role != "admin":
@@ -140,17 +153,17 @@ def list_prescriptions(
     items = q.order_by(Prescription.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
     return {
-        "total": total,
-        "page": page,
+        "total":     total,
+        "page":      page,
         "page_size": page_size,
         "items": [
             {
-                "id": str(rx.id),
-                "status": rx.status,
-                "input_type": rx.input_type,
+                "id":               str(rx.id),
+                "status":           rx.status,
+                "input_type":       rx.input_type,
                 "original_filename": rx.original_filename,
-                "ocr_confidence": rx.ocr_confidence,
-                "created_at": rx.created_at.isoformat(),
+                "ocr_confidence":   rx.ocr_confidence,
+                "created_at":       rx.created_at.isoformat(),
             }
             for rx in items
         ],
@@ -166,16 +179,18 @@ def get_prescription(
     """Full prescription details including extracted fields."""
     rx = _get_prescription_or_404(db, prescription_id, current_user)
     return {
-        "id": str(rx.id),
-        "status": rx.status,
-        "input_type": rx.input_type,
-        "original_filename": rx.original_filename,
-        "ocr_confidence": rx.ocr_confidence,
-        "extracted_fields": rx.extracted_fields,
+        "id":                     str(rx.id),
+        "status":                 rx.status,
+        "input_type":             rx.input_type,
+        "original_filename":      rx.original_filename,
+        "ocr_confidence":         rx.ocr_confidence,
+        "completeness_score":     rx.completeness_score,
+        "missing_fields":         rx.missing_fields,
+        "extracted_fields":       rx.extracted_fields,
         "drug_validation_result": rx.drug_validation_result,
-        "celery_job_id": rx.celery_job_id,
-        "created_at": rx.created_at.isoformat(),
-        "updated_at": rx.updated_at.isoformat(),
+        "celery_job_id":          rx.celery_job_id,
+        "created_at":             rx.created_at.isoformat(),
+        "updated_at":             rx.updated_at.isoformat(),
     }
 
 
@@ -189,9 +204,9 @@ def get_analysis_status(
     rx = _get_prescription_or_404(db, prescription_id, current_user)
     return {
         "prescription_id": str(rx.id),
-        "status": rx.status,
-        "celery_job_id": rx.celery_job_id,
-        "updated_at": rx.updated_at.isoformat(),
+        "status":          rx.status,
+        "celery_job_id":   rx.celery_job_id,
+        "updated_at":      rx.updated_at.isoformat(),
     }
 
 
@@ -201,7 +216,7 @@ def get_analysis_results(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get the full analysis results for a completed prescription."""
+    """Get the full analysis results for a completed prescription (new-style endpoint)."""
     rx = _get_prescription_or_404(db, prescription_id, current_user)
 
     if rx.status != PrescriptionStatus.analyzed:
@@ -220,20 +235,21 @@ def get_analysis_results(
 
     return {
         "prescription_id": str(rx.id),
-        "status": rx.status,
+        "status":          rx.status,
         "report": {
-            "id": str(report.id),
-            "label": report.label,
-            "confidence": report.confidence,
-            "rule_label": report.rule_label,
-            "llm_label": report.llm_label,
-            "ml_label": report.ml_label,
-            "consensus": report.consensus,
+            "id":              str(report.id),
+            "label":           report.label,
+            "confidence":      report.confidence,
+            "rule_label":      report.rule_label,
+            "llm_label":       report.llm_label,
+            "ml_label":        report.ml_label,
+            "consensus":       report.consensus,
             "rules_triggered": report.rules_triggered,
-            "llm_reason": report.llm_reason,
+            "llm_reason":      report.llm_reason,
             "evidence_sources": report.evidence_sources,
-            "pdf_local_path": report.pdf_local_path,
-            "generated_at": report.pdf_generated_at.isoformat() if report.pdf_generated_at else None,
+            "checklist_items": report.checklist_items,
+            "pdf_local_path":  report.pdf_local_path,
+            "generated_at":    report.pdf_generated_at.isoformat() if report.pdf_generated_at else None,
         },
         "extracted_fields": rx.extracted_fields,
     }
@@ -245,13 +261,14 @@ def delete_prescription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Soft-delete a prescription."""
+    """Soft-delete a prescription. Requires admin role."""
+    _require_role(current_user, "admin")
     rx = _get_prescription_or_404(db, prescription_id, current_user)
     rx.deleted_at = datetime.utcnow()
     db.commit()
 
 
-# ── Analysis sub-routes (mounted here for simplicity, also in analysis.py) ──
+# ── Legacy endpoints (kept for backwards compatibility) ───────────────────────
 
 @router.post("/run/{prescription_id}")
 def trigger_analysis(
@@ -260,33 +277,34 @@ def trigger_analysis(
     current_user: User = Depends(get_current_user),
 ):
     """Enqueue the full analysis pipeline via Celery."""
+    _require_role(current_user, "pharmacist", "admin")
     rx = _get_prescription_or_404(db, prescription_id, current_user)
 
     if rx.status == PrescriptionStatus.analyzed:
         return {"message": "Already analyzed", "prescription_id": prescription_id}
 
-    from app.worker import run_analysis_task
+    from app.services.worker import run_analysis_task
     task = run_analysis_task.apply_async(args=[str(rx.id)], queue="analysis")
 
     rx.celery_job_id = task.id
-    rx.status = PrescriptionStatus.processing
+    rx.status        = PrescriptionStatus.processing
     db.commit()
 
     return {
         "prescription_id": prescription_id,
-        "job_id": task.id,
-        "status": "queued",
+        "job_id":          task.id,
+        "status":          "queued",
     }
 
 
 @router.get("/status/{job_id}")
 def get_job_status(job_id: str, current_user: User = Depends(get_current_user)):
     """Poll Celery job status."""
-    from app.worker import celery_app
+    from app.services.worker import celery_app
     result = celery_app.AsyncResult(job_id)
     return {
         "job_id": job_id,
-        "status": result.status.lower(),   # pending/started/success/failure
+        "status": result.status.lower(),
         "result": result.result if result.ready() else None,
     }
 
@@ -297,7 +315,7 @@ def get_analysis_result(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Full analysis result once pipeline is complete."""
+    """Full analysis result once pipeline is complete (legacy endpoint)."""
     rx = _get_prescription_or_404(db, prescription_id, current_user)
 
     if rx.status != PrescriptionStatus.analyzed:
@@ -312,26 +330,22 @@ def get_analysis_result(
 
     return {
         "prescription_id": prescription_id,
-        "status": "complete",
+        "status":          "complete",
         "extracted_fields": rx.extracted_fields,
+        # checklist_items at root so the frontend can access it directly
+        "checklist_items": report.checklist_items or [],
         "discrepancy": {
-            "label": report.label,
-            "confidence": report.confidence,
+            "label":          report.label,
+            "confidence":     report.confidence,
             "rule_triggered": report.rule_label,
-            "rules": report.rules_triggered,
-            "llm_reason": report.llm_reason,
+            "rules":          report.rules_triggered,
+            "llm_reason":     report.llm_reason,
             "evidence_sources": report.evidence_sources,
-            "ml_prediction": {
-                "label": report.ml_label,
-                "confidence": report.ml_confidence,
-                "top_features": report.ml_features,
-            } if report.ml_label else None,
-            "consensus": report.consensus,
         },
         "pharmacist_feedback": {
-            "label": report.pharmacist_label,
-            "note": report.feedback_note,
-            "is_correct": report.is_correct,
+            "label":        report.pharmacist_label,
+            "note":         report.feedback_note,
+            "is_correct":   report.is_correct,
             "submitted_at": report.feedback_at.isoformat() if report.feedback_at else None,
         },
     }
@@ -344,16 +358,17 @@ def submit_feedback(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Pharmacist correction for active learning."""
-    rx = _get_prescription_or_404(db, prescription_id, current_user)
-    report: DiscrepancyReport = rx.report
+    """Pharmacist correction for active learning. Requires pharmacist or admin role."""
+    _require_role(current_user, "pharmacist", "admin")
+    rx     = _get_prescription_or_404(db, prescription_id, current_user)
+    report = rx.report
     if not report:
         raise HTTPException(status_code=404, detail="No report to submit feedback for")
 
     report.pharmacist_label = payload.pharmacist_label
-    report.feedback_note = payload.feedback_note
-    report.is_correct = payload.is_correct
-    report.feedback_at = datetime.utcnow()
+    report.feedback_note    = payload.feedback_note
+    report.is_correct       = payload.is_correct
+    report.feedback_at      = datetime.utcnow()
     db.commit()
 
     return {"message": "Feedback recorded. Thank you.", "prescription_id": prescription_id}

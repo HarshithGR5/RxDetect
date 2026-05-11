@@ -1,7 +1,6 @@
 # ============================================================
 # AI-Powered Prescription Discrepancy Detection System
-# Backend Requirements
-# Python 3.11+
+# Backend Requirements — Python 3.11+
 # ============================================================
 
 # --- Web Framework ---
@@ -27,7 +26,7 @@ celery==5.4.0                    # async job queue
 flower==2.0.1                    # Celery monitoring (optional)
 
 # --- AWS ---
-# boto3==1.34.114                  # S3 image storage
+# boto3==1.34.114                  # S3 image storage (uncomment if using S3)
 botocore==1.34.114
 
 # --- OpenAI / LLM ---
@@ -41,7 +40,7 @@ langchain-community==0.2.3
 langchain-core==0.2.5
 faiss-cpu==1.8.0                 # vector store (swap to faiss-gpu on GPU instances)
 
-#----RAG Retrieval ---
+# --- RAG Retrieval ---
 pypdf==4.2.0
 pdfminer.six==20231228
 nltk==3.8.1
@@ -64,9 +63,26 @@ rapidfuzz==3.9.3                 # fuzzy drug name matching
 ftfy==6.2.0                      # fix broken unicode / OCR artifacts
 unidecode==1.3.8                 # normalize accented characters
 
-# --- PDF Report Generation ---
-weasyprint==62.3                 # HTML → PDF
-jinja2==3.1.4                    # report HTML templates
+# ---------------------------------------------------------------
+# NEW LIBRARIES (added in latest upgrade)
+# ---------------------------------------------------------------
+
+# --- PDF Input Support (NEW) ---
+# Converts uploaded PDF prescriptions → images before GPT-4o Vision
+PyMuPDF==1.24.5                  # PRIMARY: fast PDF→image, zero system deps (import as fitz)
+pdf2image==1.17.0                # FALLBACK: PDF→image via poppler (needs poppler installed)
+Pillow==10.3.0                   # image manipulation — required by pdf2image + base64 encoding
+
+# --- PDF Report Generation (CHANGED: WeasyPrint → reportlab) ---
+# WeasyPrint required GTK/cairo system libraries which are unavailable on most servers.
+# reportlab is pure-Python, installs with pip, no system dependencies.
+reportlab==4.2.2                 # PDF canvas + layout engine for audit reports
+
+# ---------------------------------------------------------------
+# REMOVED LIBRARIES
+# ---------------------------------------------------------------
+# weasyprint==62.3    — replaced by reportlab (GTK dependency removed)
+# jinja2==3.1.4       — was only used for WeasyPrint HTML templates; no longer needed
 
 # --- Data Validation (Pydantic) ---
 pydantic==2.7.3

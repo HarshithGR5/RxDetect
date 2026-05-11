@@ -3,6 +3,9 @@ import type { NextRequest } from 'next/server'
 
 const PUBLIC_PATHS = ['/', '/login', '/signup']
 
+// Routes that viewers (read-only role) cannot access
+const VIEWER_BLOCKED = ['/upload']
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -15,10 +18,16 @@ export function middleware(request: NextRequest) {
 
   if (isPublic) return NextResponse.next()
 
-  // Check for our thin session cookie (set by saveTokens in api.ts)
+  // Check session cookie
   const session = request.cookies.get('rx_session')
   if (!session) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Role-based access: viewers cannot upload
+  const role = request.cookies.get('rx_role')?.value
+  if (role === 'viewer' && VIEWER_BLOCKED.some(p => pathname.startsWith(p))) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return NextResponse.next()

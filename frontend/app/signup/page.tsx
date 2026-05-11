@@ -8,9 +8,9 @@ import { authApi } from '@/lib/api'
 import toast from 'react-hot-toast'
 
 const ROLES = [
-  { value: 'pharmacist', label: 'Pharmacist',      desc: 'Upload & analyse prescriptions' },
-  { value: 'admin',      label: 'Administrator',   desc: 'Full system access' },
-  { value: 'viewer',     label: 'Viewer',          desc: 'Read-only access' },
+  { value: 'pharmacist', label: 'Pharmacist',    desc: 'Upload & analyse prescriptions' },
+  { value: 'admin',      label: 'Administrator', desc: 'Full system access' },
+  { value: 'viewer',     label: 'Viewer',        desc: 'Read-only access' },
 ]
 
 export default function SignupPage() {
@@ -33,14 +33,16 @@ export default function SignupPage() {
       toast.success('Account created! Please sign in.')
       router.push('/login')
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Registration failed')
+      const detail = err.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : 'Registration failed')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-50/30 flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-50/30
+                    flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -66,7 +68,8 @@ export default function SignupPage() {
           <p className="text-sm text-slate-400 mb-6">Join your clinical team on RxDetect</p>
 
           {error && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-4">
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700
+                            text-sm px-4 py-3 rounded-xl mb-4">
               <AlertCircle size={14} className="flex-shrink-0" />
               {error}
             </div>
@@ -108,8 +111,13 @@ export default function SignupPage() {
                   onChange={e => setPassword(e.target.value)}
                   required
                 />
-                <button type="button" onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400
+                             hover:text-slate-600 touch-manipulation"
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                >
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
@@ -124,15 +132,20 @@ export default function SignupPage() {
                     key={r.value}
                     type="button"
                     onClick={() => setRole(r.value)}
-                    className={`flex flex-col items-center p-3 rounded-xl border-2 text-center transition-all text-xs ${
+                    className={`flex flex-col items-center p-3 rounded-xl border-2 text-center
+                                transition-all text-xs touch-manipulation ${
                       role === r.value
                         ? 'border-primary-400 bg-primary-50 text-primary-700'
                         : 'border-slate-100 bg-white text-slate-600 hover:border-slate-200'
                     }`}
                   >
-                    {role === r.value && <CheckCircle2 size={12} className="text-primary-500 mb-1" />}
+                    {role === r.value && (
+                      <CheckCircle2 size={12} className="text-primary-500 mb-1" />
+                    )}
                     <span className="font-semibold">{r.label}</span>
-                    <span className="text-slate-400 mt-0.5 leading-tight hidden sm:block">{r.desc}</span>
+                    <span className="text-slate-400 mt-0.5 leading-tight hidden sm:block text-[10px]">
+                      {r.desc}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -140,17 +153,19 @@ export default function SignupPage() {
 
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? (
-                <span className="flex items-center gap-2">
+                <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Creating account…
-                </span>
+                </>
               ) : 'Create account'}
             </button>
           </form>
 
           <p className="text-center text-sm text-slate-400 mt-5">
             Already have an account?{' '}
-            <Link href="/login" className="text-primary-500 font-medium hover:underline">Sign in</Link>
+            <Link href="/login" className="text-primary-500 font-medium hover:underline">
+              Sign in
+            </Link>
           </p>
         </motion.div>
       </div>

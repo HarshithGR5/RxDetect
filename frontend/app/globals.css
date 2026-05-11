@@ -8,34 +8,40 @@
     --teal: #2EC4B6;
   }
   * { box-sizing: border-box; }
-  html { font-family: 'Inter', system-ui, sans-serif; }
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
   body { @apply bg-slate-50 text-slate-800 antialiased; }
   h1,h2,h3,h4 { @apply font-semibold tracking-tight; }
 }
 
 @layer components {
   .card {
-    @apply bg-white rounded-2xl border border-slate-100 shadow-card p-6;
+    @apply bg-white rounded-2xl border border-slate-100 shadow-card p-4 sm:p-6;
   }
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600
-           text-white font-medium px-5 py-2.5 rounded-xl transition-all duration-150
-           disabled:opacity-50 disabled:cursor-not-allowed shadow-sm;
+           text-white font-medium px-4 sm:px-5 py-2.5 rounded-xl transition-all duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed shadow-sm
+           active:scale-95 touch-manipulation;
   }
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50
-           text-primary-500 font-medium px-5 py-2.5 rounded-xl border border-primary-200
-           transition-all duration-150 disabled:opacity-50 shadow-sm;
+           text-primary-500 font-medium px-4 sm:px-5 py-2.5 rounded-xl border border-primary-200
+           transition-all duration-150 disabled:opacity-50 shadow-sm
+           active:scale-95 touch-manipulation;
   }
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 text-slate-600 hover:text-primary-500
-           hover:bg-slate-100 font-medium px-4 py-2 rounded-xl transition-all duration-150;
+           hover:bg-slate-100 font-medium px-3 sm:px-4 py-2 rounded-xl transition-all duration-150
+           active:scale-95 touch-manipulation;
   }
   .input {
     @apply w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white
            text-slate-800 placeholder-slate-400
            focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400
-           transition-all duration-150 text-sm;
+           transition-all duration-150 text-base sm:text-sm;
   }
   .label { @apply block text-sm font-medium text-slate-700 mb-1.5; }
   .section-title { @apply text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3; }
@@ -48,8 +54,15 @@
 }
 .animate-softpulse { animation: softpulse 2s ease-in-out infinite; }
 
-/* Custom scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { @apply bg-transparent; }
-::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }
-::-webkit-scrollbar-thumb:hover { @apply bg-slate-300; }
+/* Custom scrollbar — desktop only */
+@media (min-width: 768px) {
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-slate-300; }
+}
+
+/* Safe-area padding for notched phones */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

@@ -20,6 +20,7 @@
 - [API Reference](#api-reference)
 - [Frontend Pages](#frontend-pages)
 - [AI Pipeline](#ai-pipeline)
+- [Changelog — Recent Session Updates](#changelog--recent-session-updates)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -34,12 +35,14 @@ RxDetect automates the pharmacist's first line of defence — catching prescript
 | Capability | Details |
 |---|---|
 | OCR extraction | GPT-4o Vision extracts all prescription fields from any image format |
+| 27-parameter checklist | Second GPT-4o call generates a structured YES/NO clinical audit checklist |
 | Rule engine | 20+ deterministic clinical rules (dose range, duplicate drug, allergy flag, …) |
 | Drug validation | RxNorm + OpenFDA real-time cross-check of drug names, dosage, and interactions |
-| RAG evidence | FAISS vector store seeded with WHO essential medicines guidelines (89 chunks) |
+| RAG evidence | FAISS vector store seeded with clinical guideline PDFs |
 | LLM reasoning | GPT-4o synthesises all signals into a final clinical verdict |
 | PDF reports | WeasyPrint generates a downloadable audit-ready PDF per prescription |
-| Role-based auth | JWT access + refresh tokens; pharmacist / doctor / admin roles |
+| Role-based auth | JWT access + refresh tokens; pharmacist / admin / viewer roles |
+| Prescription comparison | Side-by-side 27-parameter checklist comparison across multiple prescriptions |
 
 ---
 
@@ -69,13 +72,13 @@ FastAPI backend (port 8000)
         │
         ├── PostgreSQL 16  (users, prescriptions, reports, audit log)
         ├── Redis 7         (Celery broker + result backend)
-        └── FAISS index     (WHO guideline embeddings, 89 vectors)
+        └── FAISS index     (clinical guideline embeddings)
 
 AI Pipeline (Celery worker)
-   Step 1 │ GPT-4o Vision  →  OCR field extraction
-   Step 2 │ Rule Engine    →  deterministic clinical checks
+   Step 1 │ GPT-4o Vision  →  OCR field extraction + 27-param checklist
+   Step 2 │ Rule Engine    →  deterministic clinical checks (20+ rules)
    Step 3 │ RxNorm/OpenFDA →  drug name & dose validation
-   Step 4 │ FAISS RAG      →  retrieve relevant WHO guidelines
+   Step 4 │ FAISS RAG      →  retrieve relevant clinical guidelines
    Step 5 │ GPT-4o         →  synthesise verdict + confidence score
    Step 6 │ Aggregator     →  consensus across all signals
 ```
@@ -137,10 +140,10 @@ rxdetect/
 │   │   ├── patient.py
 │   │   └── audit_log.py
 │   ├── services/
-│   │   ├── ocr/                # GPT-4o Vision extraction
+│   │   ├── ocr/                # GPT-4o Vision extraction + checklist
 │   │   ├── rules/              # deterministic clinical rule engine
 │   │   ├── validation/         # RxNorm + OpenFDA drug validation
-│   │   ├── rag/                # FAISS vector store + WHO guidelines
+│   │   ├── rag/                # FAISS vector store + clinical guidelines
 │   │   ├── llm/                # GPT-4o clinical reasoning
 │   │   ├── ml/                 # XGBoost ensemble + SHAP explainability
 │   │   ├── aggregator.py       # multi-signal consensus
@@ -155,9 +158,10 @@ rxdetect/
 │   │   ├── page.tsx            # Landing page
 │   │   ├── login/page.tsx
 │   │   ├── signup/page.tsx
-│   │   ├── dashboard/page.tsx  # Prescription list + stats
+│   │   ├── dashboard/page.tsx  # Prescription list + multi-select comparison
 │   │   ├── upload/page.tsx     # Drag-and-drop upload
 │   │   ├── analysis/[id]/      # 3-column clinical analysis view
+│   │   ├── compare/page.tsx    # Side-by-side checklist comparison
 │   │   └── reports/page.tsx    # All reports + PDF download
 │   ├── components/
 │   │   ├── Navbar.tsx
@@ -165,8 +169,9 @@ rxdetect/
 │   │   ├── ClarityIndicator.tsx
 │   │   ├── UploadZone.tsx
 │   │   ├── FieldExtractPanel.tsx
-│   │   ├── EvidencePanel.tsx
+│   │   ├── EvidencePanel.tsx   # Collapsible evidence panel
 │   │   ├── RuleFindings.tsx
+│   │   ├── ClinicalChecklistModal.tsx  # Sl.No / YES / NO table
 │   │   ├── StatusPill.tsx
 │   │   ├── StatsCard.tsx
 │   │   └── Skeleton.tsx
@@ -179,7 +184,8 @@ rxdetect/
 │   └── next.config.js
 │
 ├── alembic/                    # DB migration scripts
-├── data/                       # FAISS index + WHO guideline docs
+├── data/                       # FAISS index + clinical guideline docs
+│   └── brand_names.csv         # 500+ brand→generic drug name mappings (incl. orthopedic)
 ├── tests/                      # pytest test suite
 ├── docker-compose.yml
 ├── Dockerfile
@@ -310,7 +316,7 @@ script must be run first so embeddings are generated and saved offline.
 | 4 PDFs / 2000 pages | ~12,000 chunks, ~75 MB index, ~30–60 min to embed (one-time, billed per token) |
 | Retrieval | Millisecond-fast at any scale using approximate nearest-neighbour search |
 
-### Step-by-step: adding your 4 clinical PDFs
+### Step-by-step: adding your clinical PDFs
 
 ```bash
 # 1. Copy your PDFs into the guidelines directory
@@ -390,7 +396,8 @@ Full interactive docs are available at **http://localhost:8000/docs** (Swagger U
 | `POST` | `/api/v1/prescriptions/upload` | Upload a prescription image — triggers AI pipeline |
 | `GET` | `/api/v1/prescriptions/{id}` | Get prescription details |
 | `GET` | `/api/v1/prescriptions/{id}/status` | Poll processing status |
-| `GET` | `/api/v1/prescriptions/{id}/results` | Get full analysis result |
+| `GET` | `/api/v1/prescriptions/{id}/results` | Get full analysis result (new-style endpoint) |
+| `GET` | `/api/v1/prescriptions/result/{id}` | Get full analysis result (legacy endpoint) |
 | `PATCH` | `/api/v1/prescriptions/feedback/{id}` | Submit pharmacist correction/feedback |
 | `DELETE` | `/api/v1/prescriptions/{id}` | Delete prescription |
 
@@ -418,23 +425,26 @@ Full interactive docs are available at **http://localhost:8000/docs** (Swagger U
 | `/` | Landing page — product overview |
 | `/login` | Sign in with email + password |
 | `/signup` | Create a new clinician account |
-| `/dashboard` | Prescription list with status filters and summary stats |
+| `/dashboard` | Prescription list with status filters, stats, and multi-select comparison |
 | `/upload` | Drag-and-drop prescription image upload |
-| `/analysis/[id]` | 3-column clinical view: extracted fields · rule findings · guideline evidence |
+| `/analysis/[id]` | 3-column clinical view: extracted fields · rule findings · guideline evidence · 27-param checklist |
+| `/compare?ids=id1,id2` | Side-by-side 27-parameter checklist comparison for 2–4 prescriptions |
 | `/reports` | All generated reports with PDF download |
 
 ---
 
 ## AI Pipeline
 
-Each uploaded prescription is processed asynchronously through a 6-step pipeline:
+Each uploaded prescription is processed asynchronously through a multi-step pipeline:
 
 ```
 Upload → [Celery queue]
   │
   ├── Step 1: OCR (GPT-4o Vision)
   │     Extracts: patient name, drug names, dosages, frequency,
-  │               route, prescriber, date, diagnosis
+  │               route, prescriber, date, diagnosis,
+  │               previous_medical_history, allergy_history
+  │     Also generates: 27-parameter clinical audit checklist (second GPT-4o call)
   │
   ├── Step 2: Rule Engine (20+ deterministic rules)
   │     Checks: dose range, duplicate drug, missing fields,
@@ -442,18 +452,54 @@ Upload → [Celery queue]
   │
   ├── Step 3: Drug Validation (RxNorm + OpenFDA)
   │     Validates: drug name spelling, dose units, known interactions
+  │     Brand→generic: data/brand_names.csv (500+ entries, incl. orthopedic drugs)
   │
-  ├── Step 4: RAG Retrieval (FAISS + WHO guidelines)
+  ├── Step 4: RAG Retrieval (FAISS + clinical guidelines)
+  │     Query: natural-language clinical question (drug + condition + age)
+  │     Filter: MIN_SCORE=0.55 relevance threshold, RELEVANCE_THRESHOLD=0.50 suppression
   │     Retrieves: top-k relevant guideline chunks for drugs found
   │
   ├── Step 5: LLM Reasoning (GPT-4o)
   │     Synthesises all signals → discrepancy label + confidence score
-  │     + clinical reasoning narrative
+  │     + clinical reasoning narrative + therapy suggestions
   │
   └── Step 6: Aggregator
         Consensus across rule engine + LLM → final verdict stored to DB
         Status transitions: uploaded → ocr_done → validated → analyzed
 ```
+
+---
+
+## Changelog — Recent Session Updates
+
+### Bug fixes
+
+| # | Component | Fix |
+|---|---|---|
+| 1 | `prescriptions.py` | Fixed `checklist_items` nested inside `discrepancy{}` — moved to root of API response so frontend `result?.checklist_items` resolves correctly |
+| 2 | `discrepancy_report.py` / UI | `DiscrepancyLabel` enum display fixed — values now show as `"Omission"` not `"DiscrepancyLabel.omission"` |
+| 3 | `types.ts` | `TherapySuggestion` corrected to `{type, description}` (not `category/suggestion/rationale`) |
+| 4 | `types.ts` | `ChecklistItem` corrected to use `category` field (not `group`) |
+| 5 | Dashboard | Removed "Consensus" column that was showing raw enum values |
+
+### New features
+
+| # | Feature | Details |
+|---|---|---|
+| 1 | 27-parameter clinical checklist | OCR step now runs a second GPT-4o call to score 27 clinical parameters as YES/NO/NA. Displayed in a Sl.No/YES/NO table modal on the analysis page and embedded in the PDF report |
+| 2 | Prescription comparison | Dashboard now supports multi-select checkboxes on analyzed prescriptions; navigates to `/compare` for side-by-side 27-param checklist view (up to 4 prescriptions) |
+| 3 | `previous_medical_history` field | Added to OCR schema, extracted_fields model, and FieldExtractPanel display |
+| 4 | Therapy suggestions | GPT-4o can now suggest non-drug/therapy alternatives; shown in a collapsible card on analysis page |
+| 5 | Collapsible evidence panel | EvidencePanel now collapses by default — reduces visual noise on the analysis page |
+
+### Data improvements
+
+| # | File | Change |
+|---|---|---|
+| 1 | `data/brand_names.csv` | Added 77 orthopedic/musculoskeletal brand→generic mappings (altraday→aceclofenac+tizanidine, voveron→diclofenac, etc.) — total now 500+ entries |
+| 2 | `services/rag/retriever.py` | `build_prescription_query` now generates a focused natural-language clinical question instead of a keyword list; improves embedding similarity matching |
+| 3 | `services/rag/retriever.py` | `MIN_SCORE` raised from 0.40 → 0.55; added `RELEVANCE_THRESHOLD=0.50` — suppresses entirely off-topic evidence chunks from appearing in the reasoning prompt |
+| 4 | `services/llm/prompts.py` | System prompt updated to use `previous_medical_history` context for more accurate LLM reasoning |
 
 ---
 
