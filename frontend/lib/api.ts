@@ -15,9 +15,11 @@ import axios, { AxiosRequestConfig } from 'axios'
 import Cookies from 'js-cookie'
 
 // ── Backend base URL ──────────────────────────────────────────────────────────
-const BASE =
+const API_ROOT =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ??
-  'http://localhost:8000/api/v1'
+  'http://localhost:8000'
+
+const BASE = `${API_ROOT}/api/v1`
 
 export const api = axios.create({
   baseURL: BASE,

@@ -26,7 +26,6 @@ _allowed_origins = [
     "http://localhost:3000",
     "http://0.0.0.0:3000",
     "http://127.0.0.1:3000",
-    # Next.js dev server
     "http://localhost:5000",
     "http://0.0.0.0:5000",
     "http://127.0.0.1:5000",
@@ -42,7 +41,7 @@ if _dev_domain:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_origin_regex=r"https://.*\.replit\.dev",
+    allow_origin_regex=r"https://.*\.(vercel\.app|replit\.dev)",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
