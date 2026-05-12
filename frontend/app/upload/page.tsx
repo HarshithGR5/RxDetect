@@ -65,12 +65,12 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 has-bottom-nav">
+    <div className="min-h-screen bg-[#050d1a] has-bottom-nav">
       <Navbar />
       <main className="max-w-2xl mx-auto px-4 py-6 sm:py-12">
 
         <div className="mb-5 sm:mb-8">
-          <h1 className="text-xl sm:text-2xl font-bold text-primary-500">Upload Prescription</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Upload Prescription</h1>
           <p className="text-slate-400 text-sm mt-1">
             Upload an image or PDF — or use your camera — to begin AI-powered clinical validation
           </p>
@@ -90,12 +90,12 @@ export default function UploadPage() {
               className="card mb-5"
             >
               <div className="flex items-center gap-2 mb-5">
-                <ShieldCheck size={16} className="text-primary-400" />
-                <p className="font-semibold text-slate-800">
+                <ShieldCheck size={16} className="text-teal-400" />
+                <p className="font-semibold text-white">
                   {state === 'done' ? 'Analysis complete' : 'Analysis in progress…'}
                 </p>
                 {state === 'polling' && (
-                  <Loader2 size={14} className="text-primary-400 animate-spin ml-auto" />
+                  <Loader2 size={14} className="text-teal-400 animate-spin ml-auto" />
                 )}
               </div>
 
@@ -111,31 +111,31 @@ export default function UploadPage() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.08 }}
                       className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
-                        done   ? 'bg-green-50 border-green-100' :
-                        active ? 'bg-primary-50 border-primary-100' :
-                                 'bg-slate-50 border-slate-100'
+                        done   ? 'bg-emerald-500/10 border-emerald-500/20' :
+                        active ? 'bg-teal-500/10 border-teal-500/20' :
+                                 'bg-white/3 border-white/8'
                       }`}
                     >
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        done   ? 'bg-green-500' :
-                        active ? 'bg-primary-500' : 'bg-slate-200'
+                        done   ? 'bg-emerald-500' :
+                        active ? 'bg-teal-500' : 'bg-white/10'
                       }`}>
                         {done ? (
                           <CheckCircle2 size={14} className="text-white" />
                         ) : active ? (
                           <Loader2 size={13} className="text-white animate-spin" />
                         ) : (
-                          <span className="text-xs text-slate-400 font-bold">{i + 1}</span>
+                          <span className="text-xs text-slate-500 font-bold">{i + 1}</span>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-medium ${
-                          done ? 'text-green-700' : active ? 'text-primary-700' : 'text-slate-400'
+                          done ? 'text-emerald-400' : active ? 'text-teal-400' : 'text-slate-500'
                         }`}>{step.label}</p>
-                        <p className="text-xs text-slate-400 truncate">{step.desc}</p>
+                        <p className="text-xs text-slate-500 truncate">{step.desc}</p>
                       </div>
                       {done && (
-                        <CheckCircle2 size={14} className="text-green-400 flex-shrink-0" />
+                        <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0" />
                       )}
                     </motion.div>
                   )
@@ -146,13 +146,13 @@ export default function UploadPage() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="mt-4 p-3 bg-green-50 border border-green-100 rounded-xl flex items-center gap-2"
+                  className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2"
                 >
-                  <CheckCircle2 size={16} className="text-green-500" />
-                  <p className="text-sm text-green-700 font-medium flex-1">
+                  <CheckCircle2 size={16} className="text-emerald-400" />
+                  <p className="text-sm text-emerald-400 font-medium flex-1">
                     Redirecting to analysis report…
                   </p>
-                  <ArrowRight size={14} className="text-green-500" />
+                  <ArrowRight size={14} className="text-emerald-400" />
                 </motion.div>
               )}
             </motion.div>
@@ -164,18 +164,18 @@ export default function UploadPage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="card border-red-100 bg-red-50 mb-5"
+            className="card border-red-500/20 bg-red-500/10 mb-5"
           >
             <div className="flex items-center gap-3 mb-3">
-              <XCircle size={18} className="text-red-500" />
-              <p className="text-sm font-semibold text-red-700">Analysis failed</p>
+              <XCircle size={18} className="text-red-400" />
+              <p className="text-sm font-semibold text-red-400">Analysis failed</p>
             </div>
-            <p className="text-sm text-red-600 mb-4">
+            <p className="text-sm text-red-400/80 mb-4">
               Please check the prescription image quality and try again.
             </p>
             <button
               onClick={() => { setState('idle'); setCurrentStep(-1) }}
-              className="btn-primary text-sm bg-red-500 hover:bg-red-600 border-red-500"
+              className="btn-primary text-sm"
             >
               Try again
             </button>
@@ -183,9 +183,9 @@ export default function UploadPage() {
         )}
 
         {/* Format guidelines */}
-        <div className="p-4 bg-primary-50 border border-primary-100 rounded-2xl">
-          <p className="text-xs font-semibold text-primary-600 mb-2 uppercase tracking-wide">Accepted formats</p>
-          <ul className="space-y-1.5 text-xs text-primary-500">
+        <div className="p-4 bg-teal-500/8 border border-teal-500/15 rounded-2xl">
+          <p className="text-xs font-semibold text-teal-400 mb-2 uppercase tracking-wide">Accepted formats</p>
+          <ul className="space-y-1.5 text-xs text-slate-400">
             {[
               'JPEG / PNG / WEBP prescription images',
               'PDF prescriptions (scanned or digital)',
@@ -194,7 +194,7 @@ export default function UploadPage() {
               'Best results with clear, well-lit images',
             ].map(txt => (
               <li key={txt} className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary-400 flex-shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500/60 flex-shrink-0" />
                 {txt}
               </li>
             ))}

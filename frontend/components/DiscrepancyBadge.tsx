@@ -2,9 +2,7 @@
 import { motion } from 'framer-motion'
 import { cn, LABEL_CONFIG } from '@/lib/utils'
 import type { DiscrepancyLabel } from '@/lib/types'
-import {
-  CheckCircle2, AlertTriangle, XCircle, AlertOctagon, EyeOff
-} from 'lucide-react'
+import { CheckCircle2, AlertTriangle, XCircle, AlertOctagon, EyeOff } from 'lucide-react'
 
 const ICONS: Record<DiscrepancyLabel, React.ElementType> = {
   'No Discrepancy': CheckCircle2,
@@ -34,12 +32,10 @@ export default function DiscrepancyBadge({ label, size = 'md', showText = true, 
   const iconSize = { sm: 12, md: 14, lg: 18 }[size]
 
   const badge = (
-    <span
-      className={cn(
-        'inline-flex items-center font-semibold rounded-full border',
-        cfg.color, cfg.bg, cfg.border, sizeClass
-      )}
-    >
+    <span className={cn(
+      'inline-flex items-center font-semibold rounded-full border',
+      cfg.color, cfg.bg, cfg.border, sizeClass
+    )}>
       <Icon size={iconSize} />
       {showText && label}
     </span>

@@ -23,13 +23,10 @@ export default function LoginPage() {
     try {
       const { data } = await authApi.login(email, password)
       setTokens(data.access_token, data.refresh_token)
-
-      // Fetch user profile to get role, then store it in cookie for middleware
       try {
         const me = await authApi.me()
         if (me.data?.role) saveRole(me.data.role)
       } catch {}
-
       toast.success('Welcome back!')
       router.push('/dashboard')
     } catch (err: any) {
@@ -41,7 +38,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-50/30 flex items-start sm:items-center justify-center px-4 py-8 sm:py-12"
+    <div className="min-h-screen bg-[#050d1a] flex items-start sm:items-center justify-center px-4 py-8 sm:py-12"
          style={{ paddingTop: 'max(2rem, env(safe-area-inset-top, 2rem))' }}>
       <div className="w-full max-w-md">
         {/* Logo */}
@@ -51,10 +48,10 @@ export default function LoginPage() {
           className="text-center mb-8"
         >
           <Link href="/" className="inline-flex items-center gap-2.5 justify-center">
-            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center shadow">
+            <div className="w-10 h-10 bg-gradient-to-br from-teal-400 to-teal-600 rounded-xl flex items-center justify-center shadow shadow-teal-500/30">
               <ShieldCheck size={20} className="text-white" />
             </div>
-            <span className="font-bold text-primary-500 text-xl">RxDetect</span>
+            <span className="font-bold text-white text-xl">RxDetect</span>
           </Link>
           <p className="text-slate-500 text-sm mt-3">Clinical Prescription Safety System</p>
         </motion.div>
@@ -65,11 +62,11 @@ export default function LoginPage() {
           transition={{ delay: 0.1 }}
           className="card"
         >
-          <h1 className="text-xl font-bold text-slate-800 mb-1">Sign in</h1>
+          <h1 className="text-xl font-bold text-white mb-1">Sign in</h1>
           <p className="text-sm text-slate-400 mb-6">Access your clinical dashboard</p>
 
           {error && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700
+            <div className="flex items-center gap-2 bg-red-500/15 border border-red-500/30 text-red-400
                             text-sm px-4 py-3 rounded-xl mb-4">
               <AlertCircle size={14} className="flex-shrink-0" />
               {error}
@@ -104,8 +101,8 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400
-                             hover:text-slate-600 touch-manipulation"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500
+                             hover:text-slate-300 touch-manipulation"
                   aria-label={showPw ? 'Hide password' : 'Show password'}
                 >
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -120,22 +117,22 @@ export default function LoginPage() {
             >
               {loading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
                   Signing in…
                 </>
               ) : 'Sign in'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-slate-400 mt-5">
+          <p className="text-center text-sm text-slate-500 mt-5">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-primary-500 font-medium hover:underline">
+            <Link href="/signup" className="text-teal-400 font-medium hover:underline">
               Create account
             </Link>
           </p>
         </motion.div>
 
-        <p className="text-center text-xs text-slate-400 mt-6">
+        <p className="text-center text-xs text-slate-600 mt-6">
           For authorised clinical personnel only
         </p>
       </div>

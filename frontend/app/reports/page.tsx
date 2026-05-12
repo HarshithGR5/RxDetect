@@ -49,14 +49,14 @@ export default function ReportsPage() {
   }, {})
 
   return (
-    <div className="min-h-screen bg-slate-50 has-bottom-nav">
+    <div className="min-h-screen bg-[#050d1a] has-bottom-nav">
       <Navbar />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-6 sm:mb-8 flex-wrap gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-primary-500">Reports</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">Reports</h1>
             <p className="text-slate-400 text-sm mt-0.5">All prescription analysis reports</p>
           </div>
           <div className="flex items-center gap-2">
@@ -83,8 +83,8 @@ export default function ReportsPage() {
               <div key={label} className="card py-3 px-3 sm:px-4 flex items-center gap-2">
                 <DiscrepancyBadge label={label} size="sm" showText={false} />
                 <div className="min-w-0">
-                  <p className="text-base sm:text-lg font-bold text-slate-800">{labelCounts[label] || 0}</p>
-                  <p className="text-[10px] sm:text-xs text-slate-400 leading-tight truncate">{label}</p>
+                  <p className="text-base sm:text-lg font-bold text-white">{labelCounts[label] || 0}</p>
+                  <p className="text-[10px] sm:text-xs text-slate-500 leading-tight truncate">{label}</p>
                 </div>
               </div>
             ))}
@@ -92,9 +92,9 @@ export default function ReportsPage() {
         )}
 
         {/* ── Desktop table ── */}
-        <div className="hidden sm:block bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-700">
+        <div className="hidden sm:block bg-slate-900/60 border border-white/8 rounded-2xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
+            <p className="text-sm font-semibold text-slate-300">
               {total} report{total !== 1 ? 's' : ''} found
             </p>
           </div>
@@ -102,23 +102,23 @@ export default function ReportsPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-50 bg-slate-50/70">
+                <tr className="border-b border-white/5 bg-white/3">
                   {['Prescription ID', 'Result', 'Consensus', 'Confidence', 'Generated', 'PDF', 'Actions'].map(h => (
-                    <th key={h} className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">
+                    <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-white/5">
                 {isLoading
                   ? Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} />)
                   : items.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-16 text-slate-400 text-sm">
-                        <FileText size={28} className="mx-auto mb-3 opacity-30" />
+                      <td colSpan={7} className="text-center py-16 text-slate-500 text-sm">
+                        <FileText size={28} className="mx-auto mb-3 opacity-20" />
                         No reports yet.{' '}
-                        <Link href="/upload" className="text-primary-500 hover:underline">
+                        <Link href="/upload" className="text-teal-400 hover:underline">
                           Upload a prescription
                         </Link>{' '}
                         to get started.
@@ -130,10 +130,10 @@ export default function ReportsPage() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.03 }}
-                      className="hover:bg-slate-50/60 transition-colors"
+                      className="hover:bg-white/3 transition-colors"
                     >
                       <td className="px-4 py-3.5">
-                        <p className="text-xs font-mono text-slate-500">{r.prescription_id.slice(0, 12)}…</p>
+                        <p className="text-xs font-mono text-slate-400">{r.prescription_id.slice(0, 12)}…</p>
                       </td>
                       <td className="px-4 py-3.5">
                         <DiscrepancyBadge label={r.label as DiscrepancyLabel} size="sm" />
@@ -141,42 +141,42 @@ export default function ReportsPage() {
                       <td className="px-4 py-3.5">
                         <span className={cn(
                           'text-xs font-medium px-2 py-0.5 rounded-full',
-                          r.consensus === 'HIGH' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+                          r.consensus === 'HIGH' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'
                         )}>
                           {r.consensus || '—'}
                         </span>
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2">
-                          <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-primary-400 rounded-full"
+                          <div className="w-16 h-1.5 bg-white/8 rounded-full overflow-hidden">
+                            <div className="h-full bg-teal-400 rounded-full"
                               style={{ width: `${(r.confidence || 0) * 100}%` }} />
                           </div>
-                          <span className="text-xs text-slate-500">{formatConfidence(r.confidence || 0)}</span>
+                          <span className="text-xs text-slate-400">{formatConfidence(r.confidence || 0)}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
+                      <td className="px-4 py-3.5 text-xs text-slate-400 whitespace-nowrap">
                         {formatDate(r.created_at)}
                       </td>
                       <td className="px-4 py-3.5">
                         {r.pdf_ready ? (
-                          <span className="flex items-center gap-1 text-green-600 text-xs">
+                          <span className="flex items-center gap-1 text-emerald-400 text-xs">
                             <CheckCircle2 size={12} /> Ready
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-400">Not generated</span>
+                          <span className="text-xs text-slate-500">Not generated</span>
                         )}
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-3">
                           <Link href={`/analysis/${r.prescription_id}`}
-                            className="text-xs text-primary-500 hover:text-primary-700 flex items-center gap-1">
+                            className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1">
                             View <ExternalLink size={10} />
                           </Link>
                           <button
                             onClick={() => handleDownload(r.prescription_id, r.pdf_ready)}
                             disabled={generating === r.prescription_id}
-                            className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1"
+                            className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1"
                           >
                             {generating === r.prescription_id
                               ? <Loader2 size={12} className="animate-spin" />
@@ -193,7 +193,7 @@ export default function ReportsPage() {
           </div>
 
           {total > 20 && (
-            <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
+            <div className="flex items-center justify-between px-5 py-3 border-t border-white/5">
               <p className="text-sm text-slate-400">Page {page} of {Math.ceil(total / 20)}</p>
               <div className="flex gap-2">
                 <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1}
@@ -210,16 +210,16 @@ export default function ReportsPage() {
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="card animate-pulse space-y-2 p-4">
-                <div className="h-3 bg-slate-100 rounded w-1/2" />
-                <div className="h-3 bg-slate-100 rounded w-2/3" />
-                <div className="h-3 bg-slate-100 rounded w-1/3" />
+                <div className="h-3 bg-white/8 rounded w-1/2" />
+                <div className="h-3 bg-white/8 rounded w-2/3" />
+                <div className="h-3 bg-white/8 rounded w-1/3" />
               </div>
             ))
           ) : items.length === 0 ? (
-            <div className="text-center py-16 text-slate-400 text-sm">
-              <FileText size={28} className="mx-auto mb-3 opacity-30" />
+            <div className="text-center py-16 text-slate-500 text-sm">
+              <FileText size={28} className="mx-auto mb-3 opacity-20" />
               No reports yet.{' '}
-              <Link href="/upload" className="text-primary-500 hover:underline">Upload a prescription</Link>
+              <Link href="/upload" className="text-teal-400 hover:underline">Upload a prescription</Link>
             </div>
           ) : items.map((r, i) => (
             <motion.div
@@ -227,35 +227,31 @@ export default function ReportsPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.04 }}
-              className="bg-white rounded-2xl border border-slate-100 shadow-card p-4"
+              className="card"
             >
-              {/* Top row */}
               <div className="flex items-center justify-between mb-3">
                 <DiscrepancyBadge label={r.label as DiscrepancyLabel} size="sm" />
                 <span className={cn(
                   'text-xs font-medium px-2 py-0.5 rounded-full',
-                  r.consensus === 'HIGH' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+                  r.consensus === 'HIGH' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'
                 )}>
                   {r.consensus || '—'} consensus
                 </span>
               </div>
 
-              {/* ID + date */}
-              <p className="text-xs font-mono text-slate-400 mb-1">{r.prescription_id.slice(0, 16)}…</p>
+              <p className="text-xs font-mono text-slate-500 mb-1">{r.prescription_id.slice(0, 16)}…</p>
               <p className="text-xs text-slate-500 mb-3">{formatDate(r.created_at)}</p>
 
-              {/* Confidence bar */}
               <div className="flex items-center gap-2 mb-4">
-                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary-400 rounded-full"
+                <div className="flex-1 h-1.5 bg-white/8 rounded-full overflow-hidden">
+                  <div className="h-full bg-teal-400 rounded-full"
                     style={{ width: `${(r.confidence || 0) * 100}%` }} />
                 </div>
-                <span className="text-xs text-slate-500 flex-shrink-0">
+                <span className="text-xs text-slate-400 flex-shrink-0">
                   {formatConfidence(r.confidence || 0)}
                 </span>
               </div>
 
-              {/* Actions */}
               <div className="flex items-center gap-2">
                 <Link
                   href={`/analysis/${r.prescription_id}`}
@@ -277,7 +273,6 @@ export default function ReportsPage() {
             </motion.div>
           ))}
 
-          {/* Mobile pagination */}
           {total > 20 && (
             <div className="flex gap-3 pt-2">
               <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1}

@@ -124,13 +124,16 @@ Upload → [Celery queue]
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 14 (App Router) · TypeScript |
-| Styling | Tailwind CSS · custom design tokens (navy `#1B3A6B` · teal `#2EC4B6`) |
+| Framework | React 18 + Vite (SPA) · TypeScript · pnpm monorepo |
+| Styling | Tailwind CSS v4 · dark premium glass design (`#050d1a` base · teal `#2EC4B6` accent) |
+| Routing | wouter v3 (client-side, no SSR) |
 | Data fetching | TanStack React Query v5 · Axios with JWT auto-refresh interceptor |
 | Animation | Framer Motion |
 | Icons | Lucide React |
-| File upload | react-dropzone |
+| File upload | react-dropzone + mobile camera capture |
 | Notifications | react-hot-toast |
+
+> **Note:** The frontend was migrated from Next.js 14 (App Router) to Vite + React SPA to simplify deployment. The Next.js source is preserved in `frontend/` for reference. Use `artifacts/rxdetect/` for the live app.
 
 ### Infrastructure
 
@@ -406,7 +409,7 @@ Interactive docs: **http://localhost:8000/docs** (Swagger UI) · **http://localh
 | `GET` | `/api/v1/prescriptions/{id}/status` | Poll processing status |
 | `GET` | `/api/v1/prescriptions/{id}/results` | Get full analysis result |
 | `PATCH` | `/api/v1/prescriptions/feedback/{id}` | Submit pharmacist correction / feedback |
-| `DELETE` | `/api/v1/prescriptions/{id}` | Soft-delete prescription |
+| `DELETE` | `/api/v1/prescriptions/{id}` | Soft-delete prescription (admin: any; pharmacist: own only; viewer: forbidden) + wipes associated DiscrepancyReport |
 
 ### Reports
 

@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "a8f5b1e9-a5e8-4e4a-8b0a-7e8f6a2c1d0d",
 		"name": "RxDetect API",
-		"description": "Postman collection for the RxDetect backend API.",
+		"description": "Postman collection for the RxDetect backend API.\n\nRole-based access control:\n- **pharmacist** — upload, analyse, submit feedback, delete own prescriptions\n- **admin** — full access including deleting any prescription\n- **viewer** — read-only (list/get/status/results only)",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -35,7 +35,7 @@
 								"register"
 							]
 						},
-						"description": "Create a new user account. Roles can be `pharmacist` or `admin`."
+						"description": "Create a new user account. Roles can be `pharmacist`, `admin`, or `viewer`."
 					},
 					"response": []
 				},
@@ -49,10 +49,13 @@
 									"pm.test(\"Successful login\", function () {",
 									"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
 									"});",
-									"",
-									"const response = pm.response.json();",
-									"pm.collectionVariables.set(\"access_token\", response.access_token);",
-									"pm.collectionVariables.set(\"refresh_token\", response.refresh_token);"
+									"var json = pm.response.json();",
+									"if (json.access_token) {",
+									"    pm.collectionVariables.set(\"access_token\", json.access_token);",
+									"}",
+									"if (json.refresh_token) {",
+									"    pm.collectionVariables.set(\"refresh_token\", json.refresh_token);",
+									"}"
 								],
 								"type": "text/javascript"
 							}
@@ -60,19 +63,22 @@
 					],
 					"request": {
 						"method": "POST",
-						"header": [],
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							}
+						],
 						"body": {
-							"mode": "formdata",
-							"formdata": [
+							"mode": "urlencoded",
+							"urlencoded": [
 								{
 									"key": "username",
-									"value": "pharmacist@example.com",
-									"type": "text"
+									"value": "pharmacist@example.com"
 								},
 								{
 									"key": "password",
-									"value": "securepassword123",
-									"type": "text"
+									"value": "securepassword123"
 								}
 							]
 						},
@@ -88,23 +94,43 @@
 								"login"
 							]
 						},
-						"description": "Exchange email and password for an access token. The email goes in the `username` field.\n\nThis request saves the `access_token` to a collection variable to be used in other requests."
+						"description": "Login with email + password (OAuth2 form). Returns access_token and refresh_token. The test script auto-saves these to collection variables."
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"refresh"
+							]
+						},
+						"description": "Exchange a valid refresh token for a new access + refresh token pair."
 					},
 					"response": []
 				},
 				{
 					"name": "Get Current User",
 					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{access_token}}",
-									"type": "string"
-								}
-							]
-						},
 						"method": "GET",
 						"header": [],
 						"url": {
@@ -119,53 +145,54 @@
 								"me"
 							]
 						},
-						"description": "Get the details of the currently authenticated user."
+						"description": "Returns the profile of the currently authenticated user including their role."
 					},
 					"response": []
-				}
-			],
-			"description": "Endpoints for user registration, login, and token management."
-		},
-		{
-			"name": "Patients",
-			"item": [
+				},
 				{
-					"name": "Create Patient",
+					"name": "Logout",
 					"request": {
-						"method": "POST",
+						"method": "DELETE",
 						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"full_name\": \"Jane Smith\",\n    \"mrn\": \"MRN000123\",\n    \"date_of_birth\": \"1985-05-15\",\n    \"gender\": \"Female\",\n    \"known_allergies\": \"Peanuts\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
 						"url": {
-							"raw": "{{base_url}}/api/v1/patients/",
+							"raw": "{{base_url}}/api/v1/auth/logout",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"api",
 								"v1",
-								"patients",
-								""
+								"auth",
+								"logout"
 							]
 						},
-						"description": "Create a new patient record."
+						"description": "Revoke the current refresh token."
 					},
 					"response": []
-				},
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{access_token}}",
+						"type": "string"
+					}
+				]
+			},
+			"description": "Authentication endpoints — register, login, token refresh, logout, and current user profile."
+		},
+		{
+			"name": "Patients",
+			"item": [
 				{
 					"name": "List Patients",
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/api/v1/patients/?search=smith&page=1&page_size=10",
+							"raw": "{{base_url}}/api/v1/patients/?search=",
 							"host": [
 								"{{base_url}}"
 							],
@@ -178,25 +205,16 @@
 							"query": [
 								{
 									"key": "search",
-									"value": "smith",
-									"description": "Search by name or MRN"
-								},
-								{
-									"key": "page",
-									"value": "1"
-								},
-								{
-									"key": "page_size",
-									"value": "10"
+									"value": "",
+									"description": "(Optional) Search by patient name or ID."
 								}
 							]
-						},
-						"description": "Get a list of patients with optional search and pagination."
+						}
 					},
 					"response": []
 				},
 				{
-					"name": "Get Patient by ID",
+					"name": "Get Patient",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -272,7 +290,44 @@
 								}
 							]
 						},
-						"description": "Upload a prescription image (JPEG, PNG, etc.) or a PDF. Returns a `prescription_id` to be used in other calls."
+						"description": "Upload a prescription image (JPEG, PNG, WEBP) or PDF. Triggers the AI analysis pipeline. Returns a `prescription_id` to poll for status.\n\n**Roles:** pharmacist, admin"
+					},
+					"response": []
+				},
+				{
+					"name": "List Prescriptions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/prescriptions/?page=1&page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"prescriptions",
+								""
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "20"
+								},
+								{
+									"key": "status",
+									"value": "analyzed",
+									"description": "Filter by status: uploaded | processing | ocr_done | validated | analyzed | failed",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Paginated list of prescriptions. Admins see all; pharmacists and viewers see only their own.\n\n**Roles:** all authenticated"
 					},
 					"response": []
 				},
@@ -298,7 +353,8 @@
 									"value": "your_prescription_id_here"
 								}
 							]
-						}
+						},
+						"description": "Full prescription details including extracted fields.\n\n**Roles:** all authenticated (pharmacist/viewer: own prescriptions only)"
 					},
 					"response": []
 				},
@@ -326,7 +382,7 @@
 								}
 							]
 						},
-						"description": "Poll this endpoint to check the status of the background analysis task."
+						"description": "Poll this endpoint to check the status of the background analysis task. Status values: `uploaded` → `processing` → `ocr_done` → `validated` → `analyzed` (or `failed`).\n\n**Roles:** all authenticated"
 					},
 					"response": []
 				},
@@ -354,7 +410,71 @@
 								}
 							]
 						},
-						"description": "Once the status is `analyzed`, use this endpoint to get the full discrepancy report and extracted data."
+						"description": "Once status is `analyzed`, returns the full discrepancy report including label, confidence, rule findings, checklist items, and evidence sources.\n\nReturns HTTP 202 if analysis is still in progress.\n\n**Roles:** all authenticated"
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Pharmacist Feedback",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"pharmacist_label\": \"Omission\",\n    \"feedback_note\": \"Dose frequency was missing on the original prescription.\",\n    \"is_correct\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/prescriptions/feedback/:prescription_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"prescriptions",
+								"feedback",
+								":prescription_id"
+							],
+							"variable": [
+								{
+									"key": "prescription_id",
+									"value": "your_prescription_id_here"
+								}
+							]
+						},
+						"description": "Submit a pharmacist correction for the AI verdict. Used for active learning — the corrected label and note are stored on the DiscrepancyReport.\n\n**Roles:** pharmacist, admin"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Prescription (Soft)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/prescriptions/:prescription_id",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"prescriptions",
+								":prescription_id"
+							],
+							"variable": [
+								{
+									"key": "prescription_id",
+									"value": "your_prescription_id_here"
+								}
+							]
+						},
+						"description": "Soft-delete a prescription by setting `deleted_at` timestamp. The associated DiscrepancyReport is also hard-deleted to prevent orphaned rows.\n\nReturns HTTP 204 No Content on success.\n\n**RBAC:**\n- `admin` — can delete any prescription\n- `pharmacist` — can delete **own** prescriptions only (403 for others')\n- `viewer` — cannot delete (403)\n\n**Note:** Soft-deleted prescriptions are excluded from all list/get queries. This cannot be undone via the API."
 					},
 					"response": []
 				}
@@ -369,11 +489,42 @@
 					}
 				]
 			},
-			"description": "Endpoints for uploading and analyzing prescriptions."
+			"description": "Endpoints for uploading, analysing, managing, and deleting prescriptions."
 		},
 		{
 			"name": "Reports",
 			"item": [
+				{
+					"name": "List Reports",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/reports/?page=1&page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"reports",
+								""
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Paginated list of all generated discrepancy reports.\n\n**Roles:** all authenticated"
+					},
+					"response": []
+				},
 				{
 					"name": "Generate PDF Report",
 					"request": {
@@ -398,7 +549,7 @@
 								}
 							]
 						},
-						"description": "Generate (or re-generate) the PDF summary report for an analyzed prescription."
+						"description": "Generate (or re-generate) the PDF summary report for an analyzed prescription. Generated in-memory via ReportLab — no disk writes.\n\n**Roles:** pharmacist, admin"
 					},
 					"response": []
 				},
@@ -426,7 +577,7 @@
 								}
 							]
 						},
-						"description": "Downloads the generated PDF file."
+						"description": "Download the generated PDF file as a binary stream.\n\n**Roles:** pharmacist, admin"
 					},
 					"response": []
 				}
@@ -441,7 +592,7 @@
 					}
 				]
 			},
-			"description": "Endpoints for generating and downloading PDF reports."
+			"description": "Endpoints for generating and downloading PDF audit reports."
 		}
 	],
 	"variable": [

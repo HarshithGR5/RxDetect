@@ -46,7 +46,7 @@ export default function FieldExtractPanel({ fields, flaggedFields = [] }: Props)
   const flagged   = new Set(flaggedFields)
 
   const renderValue = (key: string, value: unknown) => {
-    if (value === null || value === undefined) return <span className="text-slate-300">—</span>
+    if (value === null || value === undefined) return <span className="text-slate-600">—</span>
     if (key === 'signature_present') return value ? '✓ Present' : '✗ Absent'
     return String(value)
   }
@@ -63,20 +63,20 @@ export default function FieldExtractPanel({ fields, flaggedFields = [] }: Props)
         key={key}
         className={cn(
           'flex items-start gap-2 px-3 py-2 rounded-lg text-sm',
-          bad  ? 'bg-red-50 border border-red-100' :
-          miss ? 'bg-amber-50 border border-amber-100' :
-          'bg-slate-50'
+          bad  ? 'bg-red-500/10 border border-red-500/20' :
+          miss ? 'bg-amber-500/10 border border-amber-500/20' :
+          'bg-white/3'
         )}
       >
         <span className={cn(
           'w-28 flex-shrink-0 text-xs font-medium mt-0.5',
-          bad ? 'text-red-600' : miss ? 'text-amber-600' : 'text-slate-400'
+          bad ? 'text-red-400' : miss ? 'text-amber-400' : 'text-slate-500'
         )}>
           {label}
         </span>
         <span className={cn(
           'flex-1 font-medium break-words',
-          bad ? 'text-red-700' : miss ? 'text-amber-500 italic' : 'text-slate-800'
+          bad ? 'text-red-300' : miss ? 'text-amber-400 italic' : 'text-slate-200'
         )}>
           {miss ? 'Missing' : renderValue(key, val)}
         </span>
@@ -108,26 +108,26 @@ export default function FieldExtractPanel({ fields, flaggedFields = [] }: Props)
           <p className="section-title">Prescribed Drugs</p>
           <div className="space-y-2">
             {fields.drugs.map((drug, i) => (
-              <div key={i} className="border border-slate-100 rounded-xl p-3 bg-white">
+              <div key={i} className="border border-white/8 rounded-xl p-3 bg-white/3">
                 <div className="flex items-center gap-2 mb-2">
-                  <Pill size={13} className="text-primary-400" />
-                  <span className="text-sm font-semibold text-slate-800">{drug.drug_name}</span>
+                  <Pill size={13} className="text-teal-400" />
+                  <span className="text-sm font-semibold text-white">{drug.drug_name}</span>
                   {drug.is_high_alert && (
-                    <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">HIGH-ALERT</span>
+                    <span className="text-[10px] bg-red-500/15 text-red-400 px-1.5 py-0.5 rounded font-semibold">HIGH-ALERT</span>
                   )}
                   {drug.narrow_therapeutic_index && (
-                    <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold">NTI</span>
+                    <span className="text-[10px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded font-semibold">NTI</span>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-1 text-xs text-slate-500">
-                  {drug.dose      && <span>Dose: <span className="text-slate-700 font-medium">{drug.dose}</span></span>}
-                  {drug.route     && <span>Route: <span className="text-slate-700 font-medium">{drug.route}</span></span>}
-                  {drug.frequency && <span>Freq: <span className="text-slate-700 font-medium">{drug.frequency}</span></span>}
-                  {drug.duration  && <span>Duration: <span className="text-slate-700 font-medium">{drug.duration}</span></span>}
+                  {drug.dose      && <span>Dose: <span className="text-slate-300 font-medium">{drug.dose}</span></span>}
+                  {drug.route     && <span>Route: <span className="text-slate-300 font-medium">{drug.route}</span></span>}
+                  {drug.frequency && <span>Freq: <span className="text-slate-300 font-medium">{drug.frequency}</span></span>}
+                  {drug.duration  && <span>Duration: <span className="text-slate-300 font-medium">{drug.duration}</span></span>}
                 </div>
                 {drug.generic_name && (
-                  <p className="text-xs text-slate-400 mt-1">
-                    Generic: <span className="text-slate-600">{drug.generic_name}</span>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Generic: <span className="text-slate-400">{drug.generic_name}</span>
                   </p>
                 )}
                 {drug.special_instructions && (
@@ -140,11 +140,11 @@ export default function FieldExtractPanel({ fields, flaggedFields = [] }: Props)
       )}
 
       {fields.illegible_fields?.length > 0 && (
-        <div className="p-3 bg-red-50 rounded-xl border border-red-100">
-          <p className="text-xs font-semibold text-red-600 mb-1">Illegible Fields</p>
+        <div className="p-3 bg-red-500/10 rounded-xl border border-red-500/20">
+          <p className="text-xs font-semibold text-red-400 mb-1">Illegible Fields</p>
           <div className="flex flex-wrap gap-1">
             {fields.illegible_fields.map((f, i) => (
-              <span key={i} className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
+              <span key={i} className="text-xs bg-red-500/15 text-red-300 px-2 py-0.5 rounded">
                 {humanFieldLabel(f)}
               </span>
             ))}

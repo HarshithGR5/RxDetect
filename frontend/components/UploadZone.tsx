@@ -59,10 +59,10 @@ export default function UploadZone({ onFile, loading }: Props) {
         className={cn(
           'relative border-2 border-dashed rounded-2xl transition-all duration-200 cursor-pointer',
           isDragActive
-            ? 'border-teal-400 bg-teal-50 scale-[1.01]'
+            ? 'border-teal-400 bg-teal-500/10 scale-[1.01]'
             : selected
-            ? 'border-primary-200 bg-primary-50/40'
-            : 'border-slate-200 bg-slate-50 hover:border-primary-300 hover:bg-primary-50/20',
+            ? 'border-teal-500/30 bg-teal-500/5'
+            : 'border-white/10 bg-white/3 hover:border-teal-500/30 hover:bg-teal-500/5',
           loading && 'opacity-60 cursor-not-allowed'
         )}
       >
@@ -80,24 +80,24 @@ export default function UploadZone({ onFile, loading }: Props) {
               >
                 {preview ? (
                   <img src={preview} alt="Preview"
-                    className="w-28 h-28 object-cover rounded-xl shadow border border-slate-100" />
+                    className="w-28 h-28 object-cover rounded-xl shadow border border-white/10" />
                 ) : (
-                  <div className="w-16 h-16 bg-primary-100 rounded-xl flex items-center justify-center">
-                    <File size={28} className="text-primary-500" />
+                  <div className="w-16 h-16 bg-teal-500/15 rounded-xl flex items-center justify-center">
+                    <File size={28} className="text-teal-400" />
                   </div>
                 )}
                 <div>
-                  <p className="font-semibold text-primary-700 break-all max-w-[220px] mx-auto">
+                  <p className="font-semibold text-teal-300 break-all max-w-[220px] mx-auto">
                     {selected.name}
                   </p>
-                  <p className="text-sm text-slate-400 mt-0.5">
+                  <p className="text-sm text-slate-500 mt-0.5">
                     {(selected.size / 1024).toFixed(0)} KB · {selected.type}
                   </p>
                 </div>
                 {!loading && (
                   <button
                     onClick={clear}
-                    className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 mt-1
+                    className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 mt-1
                                min-h-[44px] px-3 touch-manipulation"
                   >
                     <X size={12} /> Remove file
@@ -114,39 +114,38 @@ export default function UploadZone({ onFile, loading }: Props) {
               >
                 <div className={cn(
                   'w-16 h-16 rounded-2xl flex items-center justify-center transition-colors',
-                  isDragActive ? 'bg-teal-100' : 'bg-primary-50'
+                  isDragActive ? 'bg-teal-500/20' : 'bg-white/5'
                 )}>
-                  <Upload size={26} className={isDragActive ? 'text-teal-500' : 'text-primary-400'} />
+                  <Upload size={26} className={isDragActive ? 'text-teal-400' : 'text-slate-400'} />
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-700">
+                  <p className="font-semibold text-slate-200">
                     {isDragActive ? 'Drop to upload' : 'Drag & drop prescription'}
                   </p>
-                  <p className="text-sm text-slate-400 mt-1">or tap to browse files</p>
+                  <p className="text-sm text-slate-500 mt-1">or tap to browse files</p>
                 </div>
-                <div className="flex flex-wrap justify-center gap-2 text-xs text-slate-400">
+                <div className="flex flex-wrap justify-center gap-2 text-xs text-slate-500">
                   {['JPG', 'PNG', 'PDF', 'WEBP'].map(f => (
                     <span key={f}
-                      className="bg-white border border-slate-200 px-2 py-0.5 rounded">{f}</span>
+                      className="bg-white/5 border border-white/10 px-2 py-0.5 rounded">{f}</span>
                   ))}
                 </div>
-                <p className="text-xs text-slate-400">Max file size: 20 MB</p>
+                <p className="text-xs text-slate-500">Max file size: 20 MB</p>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded-2xl">
+          <div className="absolute inset-0 flex items-center justify-center bg-[#050d1a]/80 rounded-2xl">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-10 h-10 rounded-full border-2 border-primary-200 border-t-primary-500 animate-spin" />
-              <p className="text-sm font-medium text-primary-600">Uploading & analysing…</p>
+              <div className="w-10 h-10 rounded-full border-2 border-teal-900 border-t-teal-400 animate-spin" />
+              <p className="text-sm font-medium text-teal-400">Uploading & analysing…</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Camera capture button — visible on mobile only, hidden on desktop */}
       {!selected && !loading && (
         <div className="sm:hidden">
           <input
@@ -162,8 +161,8 @@ export default function UploadZone({ onFile, loading }: Props) {
             type="button"
             onClick={() => cameraRef.current?.click()}
             className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl
-                       border border-dashed border-teal-300 bg-teal-50/60 text-teal-700
-                       text-sm font-medium hover:bg-teal-50 transition touch-manipulation
+                       border border-dashed border-teal-500/30 bg-teal-500/10 text-teal-400
+                       text-sm font-medium hover:bg-teal-500/15 transition touch-manipulation
                        min-h-[44px]"
           >
             <Camera size={17} />

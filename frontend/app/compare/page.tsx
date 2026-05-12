@@ -1,11 +1,12 @@
 'use client'
-import { useMemo } from 'react'
+import { useMemo, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useQueries } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, CheckCircle2, XCircle, Minus,
-  AlertCircle, Columns2, Loader2, Download
+  AlertCircle, Columns2, Loader2, Download,
+  ChevronDown, ChevronRight
 } from 'lucide-react'
 import Navbar from '@/components/Navbar'
 import DiscrepancyBadge from '@/components/DiscrepancyBadge'
@@ -14,22 +15,30 @@ import { cn } from '@/lib/utils'
 import type { AnalysisResult, ChecklistItem, DiscrepancyLabel } from '@/lib/types'
 
 function ResultIcon({ result }: { result: ChecklistItem['result'] | undefined }) {
-  if (!result || result === 'unknown') return <Minus size={14} className="text-slate-300 mx-auto" />
-  if (result === 'yes') return <CheckCircle2 size={14} className="text-green-500 mx-auto" />
-  if (result === 'no') return <XCircle size={14} className="text-red-500 mx-auto" />
-  if (result === 'na') return <span className="text-[10px] font-medium text-slate-400 block text-center">N/A</span>
+  if (!result || result === 'unknown') return <Minus size={14} className="text-slate-600 mx-auto" />
+  if (result === 'yes') return <CheckCircle2 size={14} className="text-emerald-400 mx-auto" />
+  if (result === 'no') return <XCircle size={14} className="text-red-400 mx-auto" />
+  if (result === 'na') return <span className="text-[10px] font-medium text-slate-500 block text-center">N/A</span>
   if (result === 'partial') return (
-    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-100 mx-auto">
-      <span className="text-[8px] font-bold text-amber-600">P</span>
+    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-500/20 mx-auto">
+      <span className="text-[8px] font-bold text-amber-400">P</span>
     </span>
   )
-  return <Minus size={14} className="text-slate-300 mx-auto" />
+  return <Minus size={14} className="text-slate-600 mx-auto" />
+}
+
+function ResultPill({ result }: { result: ChecklistItem['result'] | undefined }) {
+  if (result === 'yes')     return <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full"><CheckCircle2 size={10} />Pass</span>
+  if (result === 'no')      return <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-400 bg-red-500/15 px-2 py-0.5 rounded-full"><XCircle size={10} />Fail</span>
+  if (result === 'partial') return <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full">Partial</span>
+  if (result === 'na')      return <span className="text-xs font-medium text-slate-500">N/A</span>
+  return <span className="text-xs text-slate-600">—</span>
 }
 
 function cellBg(result: ChecklistItem['result'] | undefined): string {
-  if (result === 'yes')     return 'bg-green-50'
-  if (result === 'no')      return 'bg-red-50'
-  if (result === 'partial') return 'bg-amber-50'
+  if (result === 'yes')     return 'bg-emerald-500/8'
+  if (result === 'no')      return 'bg-red-500/8'
+  if (result === 'partial') return 'bg-amber-500/8'
   return ''
 }
 
@@ -41,7 +50,7 @@ function resultLabel(result: ChecklistItem['result'] | undefined): string {
   return '—'
 }
 
-export default function ComparePage() {
+function CompareInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const rawIds       = searchParams.get('ids') ?? ''
@@ -68,7 +77,7 @@ export default function ComparePage() {
         if (!existing.includes(item.parameter)) existing.push(item.parameter)
       })
     })
-    return { categories: [...categoryMap.keys()], paramsByCategory: categoryMap }
+    return { categories: Array.from(categoryMap.keys()), paramsByCategory: categoryMap }
   }, [ready])
 
   const resultMaps = useMemo(() => {
@@ -80,6 +89,17 @@ export default function ComparePage() {
   }, [ready])
 
   const colCount = ready.length
+
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
+
+  function toggleCategory(cat: string) {
+    setExpandedCategories(prev => {
+      const next = new Set(prev)
+      if (next.has(cat)) next.delete(cat)
+      else next.add(cat)
+      return next
+    })
+  }
 
   function exportCSV() {
     const header = [
@@ -116,7 +136,7 @@ export default function ComparePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 has-bottom-nav">
+    <div className="min-h-screen bg-[#050d1a] has-bottom-nav">
       <Navbar />
       <main className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
 
@@ -127,7 +147,7 @@ export default function ComparePage() {
               <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 className="text-xl font-bold text-primary-500 flex items-center gap-2">
+              <h1 className="text-xl font-bold text-white flex items-center gap-2">
                 <Columns2 size={18} />
                 Prescription Comparison
               </h1>
@@ -147,7 +167,7 @@ export default function ComparePage() {
 
         {/* Loading */}
         {isLoading && (
-          <div className="flex items-center justify-center py-24 text-slate-400 gap-3">
+          <div className="flex items-center justify-center py-24 text-slate-500 gap-3">
             <Loader2 size={20} className="animate-spin" />
             <span className="text-sm">Loading analysis results…</span>
           </div>
@@ -155,11 +175,11 @@ export default function ComparePage() {
 
         {/* Error */}
         {!isLoading && hasError && (
-          <div className="card border-amber-100 bg-amber-50 flex items-center gap-3 py-5">
-            <AlertCircle size={18} className="text-amber-500 flex-shrink-0" />
+          <div className="card border-amber-500/20 bg-amber-500/10 flex items-center gap-3 py-5">
+            <AlertCircle size={18} className="text-amber-400 flex-shrink-0" />
             <div>
-              <p className="font-semibold text-amber-700">Some results could not be loaded</p>
-              <p className="text-sm text-amber-600 mt-0.5">
+              <p className="font-semibold text-amber-400">Some results could not be loaded</p>
+              <p className="text-sm text-amber-400/70 mt-0.5">
                 Only prescriptions with completed analysis can be compared.
               </p>
             </div>
@@ -168,17 +188,18 @@ export default function ComparePage() {
 
         {/* No checklists */}
         {!isLoading && ready.length > 0 && categories.length === 0 && (
-          <div className="card border-slate-100 text-center py-12">
-            <AlertCircle size={28} className="mx-auto mb-3 text-slate-300" />
-            <p className="font-semibold text-slate-500">No checklist data available</p>
-            <p className="text-sm text-slate-400 mt-1">Re-run the analysis to generate checklists.</p>
+          <div className="card text-center py-12">
+            <AlertCircle size={28} className="mx-auto mb-3 text-slate-600" />
+            <p className="font-semibold text-slate-400">No checklist data available</p>
+            <p className="text-sm text-slate-500 mt-1">Re-run the analysis to generate checklists.</p>
           </div>
         )}
 
-        {/* ── Comparison table ── */}
+        {/* ── Content ── */}
         {!isLoading && ready.length >= 1 && categories.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-            {/* Prescription header cards */}
+
+            {/* Prescription header cards — shared by both views */}
             <div className="flex gap-3 mb-4 overflow-x-auto pb-1">
               <div className="w-[220px] flex-shrink-0 hidden sm:block" />
               {ready.map(({ data }, ci) => {
@@ -186,12 +207,12 @@ export default function ComparePage() {
                 const label       = discrepancy?.label as DiscrepancyLabel | undefined
                 const rxId        = data?.prescription_id ?? ids[ci]
                 return (
-                  <div key={rxId} className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 min-w-[120px] flex-shrink-0">
-                    <p className="text-[10px] font-semibold text-primary-400 uppercase tracking-wide mb-1">Rx {ci + 1}</p>
-                    <p className="text-xs font-mono text-slate-400 truncate mb-1.5">{rxId?.slice(0, 10)}…</p>
+                  <div key={rxId} className="card p-3 min-w-[130px] flex-shrink-0">
+                    <p className="text-[10px] font-semibold text-teal-400 uppercase tracking-wide mb-1">Rx {ci + 1}</p>
+                    <p className="text-xs font-mono text-slate-500 truncate mb-1.5">{rxId?.slice(0, 10)}…</p>
                     {label && <DiscrepancyBadge label={label} size="sm" />}
                     {discrepancy?.confidence != null && (
-                      <p className="text-xs text-slate-400 mt-1.5">
+                      <p className="text-xs text-slate-500 mt-1.5">
                         {Math.round(discrepancy.confidence * 100)}% confidence
                       </p>
                     )}
@@ -200,13 +221,13 @@ export default function ComparePage() {
               })}
             </div>
 
-            {/* Parameter table */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+            {/* ── Desktop table ── */}
+            <div className="hidden sm:block bg-slate-900/60 border border-white/8 rounded-2xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3 min-w-[220px] sticky left-0 bg-slate-50 z-10">
+                    <tr className="bg-white/3 border-b border-white/5">
+                      <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3 min-w-[220px] sticky left-0 bg-slate-900/90 z-10">
                         Parameter
                       </th>
                       {ready.map(({ data }, ci) => (
@@ -221,9 +242,9 @@ export default function ComparePage() {
                   <tbody>
                     {categories.map((category, ci) => (
                       <>
-                        <tr key={`cat-${ci}`} className="bg-primary-50/60">
+                        <tr key={`cat-${ci}`} className="bg-teal-500/8">
                           <td colSpan={colCount + 1}
-                            className="px-4 py-2 text-xs font-semibold text-primary-700 uppercase tracking-widest sticky left-0">
+                            className="px-4 py-2 text-xs font-semibold text-teal-400 uppercase tracking-widest sticky left-0">
                             {category}
                           </td>
                         </tr>
@@ -235,12 +256,12 @@ export default function ComparePage() {
                             <tr
                               key={`${ci}-${pi}`}
                               className={cn(
-                                'border-b border-slate-50 hover:bg-slate-50/50 transition-colors',
-                                anyFail && 'bg-red-50/20'
+                                'border-b border-white/5 hover:bg-white/3 transition-colors',
+                                anyFail && 'bg-red-500/5'
                               )}
                             >
-                              <td className="px-4 py-2.5 text-sm text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-50">
-                                <span className="text-xs text-slate-400 mr-1.5">{pi + 1}.</span>
+                              <td className="px-4 py-2.5 text-sm text-slate-300 sticky left-0 bg-slate-900/90 z-10 border-r border-white/5">
+                                <span className="text-xs text-slate-600 mr-1.5">{pi + 1}.</span>
                                 {param}
                               </td>
                               {items.map((item, ii) => (
@@ -262,28 +283,138 @@ export default function ComparePage() {
               </div>
 
               {/* Legend */}
-              <div className="flex items-center gap-5 px-4 py-3 border-t border-slate-100 bg-slate-50/40 flex-wrap">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Legend</p>
+              <div className="flex items-center gap-5 px-4 py-3 border-t border-white/5 bg-white/2 flex-wrap">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Legend</p>
                 {[
-                  { icon: <CheckCircle2 size={13} className="text-green-500" />, label: 'Pass' },
-                  { icon: <XCircle size={13} className="text-red-500" />,        label: 'Fail' },
-                  { icon: <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-100"><span className="text-[8px] font-bold text-amber-600">P</span></span>, label: 'Partial' },
-                  { icon: <span className="text-[10px] font-medium text-slate-400">N/A</span>, label: 'Not applicable' },
-                  { icon: <Minus size={13} className="text-slate-300" />,        label: 'Not checked' },
+                  { icon: <CheckCircle2 size={13} className="text-emerald-400" />, label: 'Pass' },
+                  { icon: <XCircle size={13} className="text-red-400" />,          label: 'Fail' },
+                  { icon: <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-500/20"><span className="text-[8px] font-bold text-amber-400">P</span></span>, label: 'Partial' },
+                  { icon: <span className="text-[10px] font-medium text-slate-500">N/A</span>, label: 'Not applicable' },
+                  { icon: <Minus size={13} className="text-slate-600" />,           label: 'Not checked' },
                 ].map(({ icon, label }) => (
                   <div key={label} className="flex items-center gap-1.5 text-xs text-slate-500">
                     {icon} {label}
                   </div>
                 ))}
-                <p className="ml-auto text-xs text-slate-400 italic">
+                <p className="ml-auto text-xs text-slate-600 italic hidden lg:block">
                   Hover a cell to read the system&apos;s reasoning for that parameter.
                 </p>
               </div>
             </div>
+
+            {/* ── Mobile accordion ── */}
+            <div className="sm:hidden space-y-2">
+              {categories.map(category => {
+                const params    = paramsByCategory.get(category) ?? []
+                const isOpen    = expandedCategories.has(category)
+                const failCount = params.filter(p =>
+                  resultMaps.some(m => m.get(p)?.result === 'no')
+                ).length
+
+                return (
+                  <div key={category} className="bg-slate-900/60 border border-white/8 rounded-2xl overflow-hidden">
+                    <button
+                      onClick={() => toggleCategory(category)}
+                      className="w-full flex items-center justify-between px-4 py-3.5 touch-manipulation"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-teal-400 uppercase tracking-widest">
+                          {category}
+                        </span>
+                        {failCount > 0 && (
+                          <span className="text-[10px] font-bold text-red-400 bg-red-500/15 px-1.5 py-0.5 rounded-full">
+                            {failCount} fail
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-600">{params.length} params</span>
+                      </div>
+                      {isOpen
+                        ? <ChevronDown size={15} className="text-slate-500 flex-shrink-0" />
+                        : <ChevronRight size={15} className="text-slate-500 flex-shrink-0" />
+                      }
+                    </button>
+
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          key="body"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="border-t border-white/5 divide-y divide-white/5">
+                            {params.map((param, pi) => {
+                              const items   = resultMaps.map(m => m.get(param))
+                              const anyFail = items.some(it => it?.result === 'no')
+                              return (
+                                <div
+                                  key={pi}
+                                  className={cn('px-4 py-3', anyFail && 'bg-red-500/5')}
+                                >
+                                  <p className="text-xs text-slate-400 mb-2">
+                                    <span className="text-slate-600 mr-1">{pi + 1}.</span>
+                                    {param}
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {items.map((item, ii) => (
+                                      <div key={ii} className="flex items-center gap-1.5">
+                                        <span className="text-[10px] text-slate-600 font-mono">Rx{ii + 1}:</span>
+                                        <ResultPill result={item?.result} />
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {items.some(it => it?.reasoning) && (
+                                    <p className="text-[11px] text-slate-600 mt-2 leading-relaxed line-clamp-2">
+                                      {items.find(it => it?.reasoning)?.reasoning}
+                                    </p>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )
+              })}
+
+              {/* Mobile legend */}
+              <div className="flex items-center gap-3 px-1 pt-1 flex-wrap">
+                {[
+                  { icon: <CheckCircle2 size={11} className="text-emerald-400" />, label: 'Pass' },
+                  { icon: <XCircle size={11} className="text-red-400" />,          label: 'Fail' },
+                  { icon: <span className="text-[9px] font-medium text-amber-400">P</span>, label: 'Partial' },
+                  { icon: <Minus size={11} className="text-slate-600" />,          label: '—' },
+                ].map(({ icon, label }) => (
+                  <div key={label} className="flex items-center gap-1 text-xs text-slate-500">
+                    {icon} {label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </motion.div>
         )}
 
       </main>
     </div>
+  )
+}
+
+export default function ComparePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#050d1a] flex items-center justify-center">
+        <div className="flex items-center gap-3 text-slate-500">
+          <Loader2 size={20} className="animate-spin" />
+          <span className="text-sm">Loading comparison…</span>
+        </div>
+      </div>
+    }>
+      <CompareInner />
+    </Suspense>
   )
 }

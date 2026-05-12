@@ -261,9 +261,21 @@ def delete_prescription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Soft-delete a prescription. Requires admin role."""
-    _require_role(current_user, "admin")
+    """Soft-delete a prescription and wipe its DiscrepancyReport.
+
+    - Admins can delete any prescription.
+    - Pharmacists can delete only their own prescriptions.
+    - Viewers cannot delete.
+    """
+    _require_role(current_user, "pharmacist", "admin")
     rx = _get_prescription_or_404(db, prescription_id, current_user)
+
+    # Wipe the associated DiscrepancyReport so orphaned report rows
+    # do not persist after the prescription is soft-deleted.
+    if rx.report:
+        db.delete(rx.report)
+        db.flush()
+
     rx.deleted_at = datetime.utcnow()
     db.commit()
 

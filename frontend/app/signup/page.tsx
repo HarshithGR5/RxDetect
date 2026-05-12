@@ -41,8 +41,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-50/30
-                    flex items-start sm:items-center justify-center px-4 py-8 sm:py-10"
+    <div className="min-h-screen bg-[#050d1a] flex items-start sm:items-center justify-center px-4 py-8 sm:py-10"
          style={{ paddingTop: 'max(2rem, env(safe-area-inset-top, 2rem))' }}>
       <div className="w-full max-w-md">
         <motion.div
@@ -51,10 +50,10 @@ export default function SignupPage() {
           className="text-center mb-8"
         >
           <Link href="/" className="inline-flex items-center gap-2.5 justify-center">
-            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center shadow">
+            <div className="w-10 h-10 bg-gradient-to-br from-teal-400 to-teal-600 rounded-xl flex items-center justify-center shadow shadow-teal-500/30">
               <ShieldCheck size={20} className="text-white" />
             </div>
-            <span className="font-bold text-primary-500 text-xl">RxDetect</span>
+            <span className="font-bold text-white text-xl">RxDetect</span>
           </Link>
           <p className="text-slate-500 text-sm mt-3">Create your clinical account</p>
         </motion.div>
@@ -65,11 +64,11 @@ export default function SignupPage() {
           transition={{ delay: 0.1 }}
           className="card"
         >
-          <h1 className="text-xl font-bold text-slate-800 mb-1">Create account</h1>
+          <h1 className="text-xl font-bold text-white mb-1">Create account</h1>
           <p className="text-sm text-slate-400 mb-6">Join your clinical team on RxDetect</p>
 
           {error && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700
+            <div className="flex items-center gap-2 bg-red-500/15 border border-red-500/30 text-red-400
                             text-sm px-4 py-3 rounded-xl mb-4">
               <AlertCircle size={14} className="flex-shrink-0" />
               {error}
@@ -115,8 +114,8 @@ export default function SignupPage() {
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400
-                             hover:text-slate-600 touch-manipulation"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500
+                             hover:text-slate-300 touch-manipulation"
                   aria-label={showPw ? 'Hide password' : 'Show password'}
                 >
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -136,15 +135,15 @@ export default function SignupPage() {
                     className={`flex flex-col items-center p-3 rounded-xl border-2 text-center
                                 transition-all text-xs touch-manipulation ${
                       role === r.value
-                        ? 'border-primary-400 bg-primary-50 text-primary-700'
-                        : 'border-slate-100 bg-white text-slate-600 hover:border-slate-200'
+                        ? 'border-teal-500/60 bg-teal-500/15 text-teal-300'
+                        : 'border-white/10 bg-white/3 text-slate-400 hover:border-white/20'
                     }`}
                   >
                     {role === r.value && (
-                      <CheckCircle2 size={12} className="text-primary-500 mb-1" />
+                      <CheckCircle2 size={12} className="text-teal-400 mb-1" />
                     )}
                     <span className="font-semibold">{r.label}</span>
-                    <span className="text-slate-400 mt-0.5 leading-tight hidden sm:block text-[10px]">
+                    <span className="text-slate-500 mt-0.5 leading-tight hidden sm:block text-[10px]">
                       {r.desc}
                     </span>
                   </button>
@@ -155,16 +154,16 @@ export default function SignupPage() {
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
                   Creating account…
                 </>
               ) : 'Create account'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-slate-400 mt-5">
+          <p className="text-center text-sm text-slate-500 mt-5">
             Already have an account?{' '}
-            <Link href="/login" className="text-primary-500 font-medium hover:underline">
+            <Link href="/login" className="text-teal-400 font-medium hover:underline">
               Sign in
             </Link>
           </p>

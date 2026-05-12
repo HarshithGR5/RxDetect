@@ -6,8 +6,18 @@ import Providers from './providers'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-  title: 'RxDetect — Prescription Safety System',
-  description: 'AI-assisted prescription discrepancy detection for clinical professionals',
+  title: 'RxDetect — AI-Powered Prescription Discrepancy Detection System',
+  description: 'AI-powered prescription discrepancy detection that catches clinical errors before they reach patients.',
+  openGraph: {
+    title: 'RxDetect — AI-Powered Prescription Discrepancy Detection System',
+    description: 'AI-powered prescription discrepancy detection that catches clinical errors before they reach patients.',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'RxDetect — AI-Powered Prescription Discrepancy Detection System',
+    description: 'AI-powered prescription discrepancy detection that catches clinical errors before they reach patients.',
+  },
 }
 
 export const viewport: Viewport = {

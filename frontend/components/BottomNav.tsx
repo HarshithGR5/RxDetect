@@ -20,7 +20,7 @@ export default function BottomNav({ isViewer = false }: Props) {
   return (
     <nav
       className="fixed bottom-0 inset-x-0 z-40 md:hidden
-                 bg-white/95 backdrop-blur border-t border-slate-100 shadow-[0_-1px_12px_rgba(0,0,0,0.06)]"
+                 bg-[#050d1a]/95 backdrop-blur-xl border-t border-white/5"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       <div className="flex items-stretch h-14">
@@ -32,14 +32,11 @@ export default function BottomNav({ isViewer = false }: Props) {
               href={href}
               className={cn(
                 'flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors touch-manipulation',
-                active ? 'text-primary-600' : 'text-slate-400 hover:text-slate-600'
+                active ? 'text-teal-400' : 'text-slate-500 hover:text-slate-300'
               )}
             >
               <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
               <span>{label}</span>
-              {active && (
-                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary-500" />
-              )}
             </Link>
           )
         })}

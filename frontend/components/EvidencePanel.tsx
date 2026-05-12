@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BookOpen, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
 import type { EvidenceSource } from '@/lib/types'
 
 interface Props { sources: EvidenceSource[] }
@@ -10,7 +10,7 @@ export default function EvidencePanel({ sources }: Props) {
   const [open, setOpen] = useState(false)
 
   if (!sources?.length) return (
-    <div className="text-sm text-slate-400 py-6 text-center flex flex-col items-center gap-2">
+    <div className="text-sm text-slate-500 py-6 text-center flex flex-col items-center gap-2">
       <BookOpen size={20} className="opacity-40" />
       No clinical guideline evidence retrieved
     </div>
@@ -18,12 +18,11 @@ export default function EvidencePanel({ sources }: Props) {
 
   return (
     <div>
-      {/* Collapsible toggle */}
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between text-sm font-medium text-primary-600
-                   bg-blue-50 px-4 py-2.5 rounded-xl border border-blue-100
-                   hover:bg-blue-100 transition touch-manipulation mb-2"
+        className="w-full flex items-center justify-between text-sm font-medium text-teal-400
+                   bg-teal-500/10 px-4 py-2.5 rounded-xl border border-teal-500/20
+                   hover:bg-teal-500/15 transition touch-manipulation mb-2"
       >
         <span className="flex items-center gap-2">
           <BookOpen size={13} />
@@ -32,7 +31,6 @@ export default function EvidencePanel({ sources }: Props) {
         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
 
-      {/* Expanded evidence list */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -49,21 +47,21 @@ export default function EvidencePanel({ sources }: Props) {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.06 }}
-                  className="p-4 rounded-xl border border-blue-100 bg-blue-50/60"
+                  className="p-4 rounded-xl border border-teal-500/15 bg-teal-500/8"
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2">
-                      <BookOpen size={13} className="text-primary-400 flex-shrink-0" />
-                      <span className="text-xs font-semibold text-primary-600 leading-tight">{src.source}</span>
+                      <BookOpen size={13} className="text-teal-400 flex-shrink-0" />
+                      <span className="text-xs font-semibold text-teal-300 leading-tight">{src.source}</span>
                     </div>
                     {src.score != null && (
-                      <span className="text-xs text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-100 flex-shrink-0">
+                      <span className="text-xs text-slate-500 bg-white/5 px-2 py-0.5 rounded-full border border-white/8 flex-shrink-0">
                         {Math.round(src.score * 100)}% match
                       </span>
                     )}
                   </div>
                   {src.excerpt && (
-                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-4">{src.excerpt}</p>
+                    <p className="text-xs text-slate-400 leading-relaxed line-clamp-4">{src.excerpt}</p>
                   )}
                 </motion.div>
               ))}

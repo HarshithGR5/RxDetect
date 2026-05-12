@@ -26,6 +26,7 @@ export type DiscrepancyLabel =
 
 export interface Drug {
   drug_name: string
+  generic_name?: string | null
   dose: string | null
   route: string | null
   frequency: string | null
@@ -148,6 +149,7 @@ export interface ReportListItem {
   prescription_id: string
   label: DiscrepancyLabel
   confidence: number
+  consensus?: string
   pdf_ready: boolean
   created_at: string
 }
