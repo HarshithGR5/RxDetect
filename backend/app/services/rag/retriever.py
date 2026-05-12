@@ -75,26 +75,72 @@ def retrieve_context(query: str, top_k: int = DEFAULT_TOP_K) -> tuple[str, list[
     return "\n\n".join(lines), filtered
 
 
+
+# Words that appear in drug name tokens but are NOT drug names themselves.
+# These come from brand-name decomposition and form abbreviations.
+_NON_DRUG_TOKENS: frozenset = frozenset({
+    "saline", "drop", "drops", "syp", "syrup", "tab", "tabs", "tablet",
+    "tablets", "cap", "caps", "capsule", "capsules", "susp", "suspension",
+    "inj", "injection", "soln", "solution", "ml", "mg", "mcg", "iu", "g",
+    "ds", "sf", "forte", "plus", "extra", "plain", "pediatric", "paediatric",
+    "adult", "junior", "sr", "xr", "er", "cr", "lp", "od",
+})
+
+# Maximum number of distinct drugs to include in a single RAG query.
+# More than ~4 makes the query too broad for dense-passage retrieval.
+_MAX_DRUGS_PER_QUERY = 4
+
+
+def _filter_drug_tokens(names: list[str]) -> list[str]:
+    """
+    Remove non-drug words (form abbreviations, excipient names, dosage units)
+    that can appear in `clean_names` after brand-name normalization.
+    Also drops tokens shorter than 4 characters that aren't real drug names.
+    """
+    out = []
+    for n in names:
+        n_stripped = n.strip()
+        n_lower    = n_stripped.lower()
+        if not n_stripped:
+            continue
+        if n_lower in _NON_DRUG_TOKENS:
+            continue
+        # drop very short tokens that are likely abbreviations/units
+        if len(n_stripped) <= 3 and not n_lower.startswith("co-"):
+            continue
+        out.append(n_stripped)
+    return out
+
+
 def build_prescription_query(extracted_fields: dict, validation_result: dict) -> str:
     """
-    Build a focused natural-language clinical query that works well with
-    dense-passage retrieval (embedding similarity search).
+    Build a focused natural-language clinical query for dense-passage retrieval.
 
-    Principle: phrase it like a clinical question a pharmacist would ask,
-    rather than a keyword list. Short, specific, semantically dense.
+    Key improvements:
+    - Strips non-drug tokens (saline, drop, syp, etc.) from clean_names
+    - Limits to _MAX_DRUGS_PER_QUERY drugs so the query stays semantically focused
+    - Phrases as a clinical question a pharmacist would ask
     """
     generic_drugs: list[str] = []
     drug_categories: list[str] = []
 
     for d in (validation_result or {}).get("per_drug", []):
-        generic_drugs.extend(d.get("clean_names", []))
+        clean = _filter_drug_tokens(d.get("clean_names", []))
+        generic_drugs.extend(clean)
         cat = d.get("category", "")
         if cat and cat not in drug_categories:
             drug_categories.append(cat)
 
     # Remove duplicates preserving order
     seen: set[str] = set()
-    unique_drugs = [d for d in generic_drugs if not (d in seen or seen.add(d))]
+    unique_drugs: list[str] = []
+    for d in generic_drugs:
+        if d not in seen:
+            seen.add(d)
+            unique_drugs.append(d)
+
+    # Cap to avoid diluting the embedding query
+    unique_drugs = unique_drugs[:_MAX_DRUGS_PER_QUERY]
 
     diagnosis   = extracted_fields.get("diagnosis", "")
     age         = extracted_fields.get("patient_age")
@@ -103,7 +149,7 @@ def build_prescription_query(extracted_fields: dict, validation_result: dict) ->
 
     # ── Build a focused clinical question ────────────────────────────────────
     drugs_str = " + ".join(unique_drugs) if unique_drugs else ""
-    cat_str   = ", ".join(drug_categories) if drug_categories else ""
+    cat_str   = ", ".join(drug_categories[:3]) if drug_categories else ""
 
     # Drug + category phrase
     if drugs_str and cat_str:
@@ -120,7 +166,7 @@ def build_prescription_query(extracted_fields: dict, validation_result: dict) ->
     if age:
         condition_parts.append(f"age {age}")
     if med_history:
-        condition_parts.append(med_history)
+        condition_parts.append(med_history[:120])   # cap to keep query tight
     condition_phrase = ", ".join(condition_parts) if condition_parts else "general use"
 
     # Allergy addendum

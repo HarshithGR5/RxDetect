@@ -1,269 +1,460 @@
 'use client'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion, useScroll, useTransform } from 'framer-motion'
+import { useRef } from 'react'
 import {
   ShieldCheck, ScanLine, Brain, ClipboardCheck,
-  ArrowRight, CheckCircle2, AlertTriangle, Users, Lock, FileText, ChevronRight
+  ArrowRight, CheckCircle2, AlertTriangle, Users, Lock, FileText,
+  ChevronRight, Zap, Database, BarChart3, Activity,
 } from 'lucide-react'
 
 const FEATURES = [
   {
     icon: ScanLine,
-    title: 'Intelligent OCR Extraction',
-    desc: 'Automatically reads handwritten and printed prescriptions using vision AI, extracting all structured fields with high accuracy.',
-    color: 'bg-blue-50 text-blue-600',
+    title: 'Vision OCR Extraction',
+    desc: 'GPT-4o Vision reads handwritten and printed prescriptions, extracting all structured fields with clinical-grade accuracy.',
+    glow: 'group-hover:shadow-blue-500/20',
+    iconBg: 'bg-blue-500/10 text-blue-400',
+    border: 'group-hover:border-blue-500/40',
   },
   {
     icon: ClipboardCheck,
-    title: 'Rule-Based Safety Checks',
-    desc: 'Deterministic clinical rules detect omissions, commission errors, illegibility, and internal inconsistencies before AI analysis.',
-    color: 'bg-teal-50 text-teal-600',
+    title: 'Rule-Based Safety Engine',
+    desc: '20+ deterministic clinical rules catch omissions, commission errors, illegibility, and internal inconsistencies instantly.',
+    glow: 'group-hover:shadow-teal-500/20',
+    iconBg: 'bg-teal-500/10 text-teal-400',
+    border: 'group-hover:border-teal-500/40',
   },
   {
     icon: Brain,
     title: 'Clinical AI Reasoning',
-    desc: 'Drug data from RxNorm and OpenFDA feeds a clinical reasoning engine that validates dosage, interactions, and contraindications.',
-    color: 'bg-indigo-50 text-indigo-600',
+    desc: 'RxNorm + OpenFDA drug data feeds a GPT-4o reasoning chain that validates dosage, interactions, and contraindications.',
+    glow: 'group-hover:shadow-indigo-500/20',
+    iconBg: 'bg-indigo-500/10 text-indigo-400',
+    border: 'group-hover:border-indigo-500/40',
   },
   {
     icon: FileText,
-    title: 'Audit-Ready Reports',
-    desc: 'Generate structured PDF reports with full clinical evidence, rule findings, and pharmacist feedback for compliance records.',
-    color: 'bg-emerald-50 text-emerald-600',
+    title: 'Audit-Ready PDF Reports',
+    desc: 'Structured PDF reports with full clinical evidence, rule findings, 27-param checklist, and pharmacist feedback.',
+    glow: 'group-hover:shadow-emerald-500/20',
+    iconBg: 'bg-emerald-500/10 text-emerald-400',
+    border: 'group-hover:border-emerald-500/40',
   },
 ]
 
 const PIPELINE = [
-  { step: '01', label: 'Upload',    desc: 'Prescription image or PDF' },
-  { step: '02', label: 'Extract',   desc: 'AI-powered field extraction' },
-  { step: '03', label: 'Validate',  desc: 'RxNorm + OpenFDA drug check' },
-  { step: '04', label: 'Analyse',   desc: 'Rule engine + clinical AI' },
-  { step: '05', label: 'Report',    desc: 'Structured audit report' },
+  { step: '01', label: 'Upload',   desc: 'Image or PDF',     icon: ScanLine },
+  { step: '02', label: 'Extract',  desc: 'AI-OCR fields',    icon: Zap },
+  { step: '03', label: 'Validate', desc: 'RxNorm + FDA',     icon: Database },
+  { step: '04', label: 'Analyse',  desc: 'Rule engine + LLM',icon: Brain },
+  { step: '05', label: 'Report',   desc: 'Audit PDF',        icon: BarChart3 },
 ]
 
-const TRUST = [
-  { icon: ShieldCheck, label: 'Clinical-grade validation',   sub: 'Following WHO & FDA standards' },
-  { icon: Lock,        label: 'Secure by design',            sub: 'JWT auth, role-based access' },
-  { icon: Users,       label: 'Built for clinical teams',    sub: 'Pharmacist & admin workflows' },
-  { icon: CheckCircle2,label: 'Evidence-backed decisions',   sub: 'Every finding has a source' },
+const DISCREPANCY_TYPES = [
+  { label: 'No Discrepancy', dot: 'bg-emerald-400', ring: 'ring-emerald-500/30 bg-emerald-500/10 text-emerald-300', desc: 'Prescription is clinically sound' },
+  { label: 'Omission',       dot: 'bg-amber-400',   ring: 'ring-amber-500/30 bg-amber-500/10 text-amber-300',     desc: 'Required field or drug is missing' },
+  { label: 'Commission',     dot: 'bg-red-400',      ring: 'ring-red-500/30 bg-red-500/10 text-red-300',           desc: 'Incorrect drug, dose, or route' },
+  { label: 'Inconsistency',  dot: 'bg-orange-400',   ring: 'ring-orange-500/30 bg-orange-500/10 text-orange-300', desc: 'Conflicting information detected' },
+  { label: 'Illegibility',   dot: 'bg-slate-400',    ring: 'ring-slate-500/30 bg-slate-500/10 text-slate-300',    desc: 'Unreadable — manual review needed' },
 ]
+
+const TRUST_BADGES = [
+  { icon: ShieldCheck,  label: 'Clinical-grade validation', sub: 'WHO & FDA aligned checks' },
+  { icon: Lock,         label: 'Secure by design',          sub: 'JWT auth, role-based access' },
+  { icon: Users,        label: 'Built for clinical teams',  sub: 'Pharmacist & admin workflows' },
+  { icon: CheckCircle2, label: 'Evidence-backed decisions', sub: 'Every finding has a source' },
+]
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  show:   { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
+}
+
+const stagger = (delay = 0.1) => ({
+  hidden: {},
+  show:   { transition: { staggerChildren: delay } },
+})
+
+function DashboardMockup() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 32, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.8, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+      className="relative w-full max-w-sm mx-auto lg:max-w-none"
+    >
+      <div className="relative rounded-2xl border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl overflow-hidden">
+        <div className="bg-slate-800/60 border-b border-white/5 px-4 py-3 flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-400/70" />
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400/70" />
+          <span className="ml-2 text-xs text-slate-500 font-mono">analysis · 3c77ff91</span>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-widest mb-1">Classification</p>
+              <span className="inline-flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-sm font-bold px-2.5 py-1 rounded-lg">
+                <AlertTriangle size={12} />
+                Omission
+              </span>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-slate-500 mb-1">AI Confidence</p>
+              <p className="text-xl font-bold text-white">87%</p>
+              <div className="w-20 h-1.5 bg-slate-700 rounded-full mt-1 ml-auto">
+                <div className="h-full bg-teal-400 rounded-full" style={{ width: '87%' }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-white/5 pt-3">
+            <p className="text-xs text-slate-500 uppercase tracking-widest mb-2">Prescribed Drugs</p>
+            <div className="space-y-1.5">
+              {[
+                { name: 'Syp Relent Plus', dose: '2.5 ml', route: 'Oral', ok: true },
+                { name: 'Nasivion Saline Drop', dose: '1 drop', route: 'Intranasal', ok: true },
+                { name: 'Syp Moxclav DS', dose: '3 ml', route: 'Oral', ok: false },
+              ].map(d => (
+                <div key={d.name} className="flex items-center gap-2 bg-slate-800/40 rounded-lg px-2.5 py-1.5">
+                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${d.ok ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                  <span className="text-xs text-slate-200 flex-1 min-w-0 truncate">{d.name}</span>
+                  <span className="text-xs text-slate-500">{d.dose}</span>
+                  <span className="text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded">{d.route}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-white/5 pt-3">
+            <p className="text-xs text-slate-500 uppercase tracking-widest mb-2">Rule Findings</p>
+            <div className="space-y-1.5">
+              {[
+                { id: 'OM003', severity: 'HIGH',   desc: 'Prescribing doctor name is missing' },
+                { id: 'OM006', severity: 'MEDIUM', desc: 'Diagnosis / indication is missing' },
+              ].map(r => (
+                <div key={r.id} className="flex items-start gap-2 bg-slate-800/40 rounded-lg px-2.5 py-1.5">
+                  <span className="text-[10px] font-mono bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded flex-shrink-0">{r.id}</span>
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${r.severity === 'HIGH' ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'}`}>{r.severity}</span>
+                  <span className="text-xs text-slate-300 leading-tight">{r.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-white/5 pt-3 flex items-center justify-between">
+            <span className="text-xs text-slate-500">27-param checklist</span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-emerald-400 font-semibold">19 ✓</span>
+              <span className="text-xs text-slate-500 mx-1">/</span>
+              <span className="text-xs text-red-400 font-semibold">5 ✗</span>
+              <span className="text-xs text-slate-500 mx-1">/</span>
+              <span className="text-xs text-slate-400">3 N/A</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <motion.div
+        animate={{ y: [0, -6, 0] }}
+        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+        className="absolute -top-4 -right-4 bg-emerald-500/15 border border-emerald-500/30 backdrop-blur-xl rounded-xl px-3 py-2 hidden sm:flex items-center gap-2 shadow-lg"
+      >
+        <Activity size={13} className="text-emerald-400" />
+        <span className="text-xs font-semibold text-emerald-300">Pipeline active</span>
+      </motion.div>
+
+      <motion.div
+        animate={{ y: [0, 5, 0] }}
+        transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
+        className="absolute -bottom-4 -left-4 bg-teal-500/15 border border-teal-500/30 backdrop-blur-xl rounded-xl px-3 py-2 hidden sm:flex items-center gap-2 shadow-lg"
+      >
+        <ShieldCheck size={13} className="text-teal-400" />
+        <span className="text-xs font-semibold text-teal-300">RxNorm validated</span>
+      </motion.div>
+    </motion.div>
+  )
+}
 
 export default function LandingPage() {
-  return (
-    <div className="min-h-screen bg-white text-slate-800">
+  const heroRef = useRef<HTMLDivElement>(null)
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
+  const heroBgY = useTransform(scrollYProgress, [0, 1], ['0%', '25%'])
 
-      {/* Navbar */}
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+  return (
+    <div className="min-h-screen bg-[#080E1A] text-slate-100 overflow-x-hidden">
+
+      {/* ── NAVBAR ──────────────────────────────────────────────────────── */}
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#080E1A]/80 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
-              <ShieldCheck size={16} className="text-white" />
+            <div className="w-7 h-7 bg-gradient-to-br from-teal-400 to-[#1B3A6B] rounded-lg flex items-center justify-center shadow-lg shadow-teal-500/30">
+              <ShieldCheck size={14} className="text-white" />
             </div>
-            <span className="font-bold text-primary-500 text-lg">RxDetect</span>
+            <span className="font-bold text-white text-base tracking-tight">RxDetect</span>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm font-medium text-slate-600 hover:text-primary-500 px-4 py-2 rounded-xl hover:bg-slate-50 transition">
+          <div className="flex items-center gap-2">
+            <Link href="/login"
+              className="text-sm text-slate-400 hover:text-white px-4 py-2 rounded-xl hover:bg-white/5 transition min-h-[40px] flex items-center">
               Sign in
             </Link>
-            <Link href="/signup" className="btn-primary text-sm">
-              Get Started <ArrowRight size={14} />
+            <Link href="/signup"
+              className="text-sm font-semibold bg-gradient-to-r from-teal-500 to-teal-400 hover:from-teal-400 hover:to-teal-300 text-white px-4 py-2 rounded-xl shadow shadow-teal-500/25 hover:shadow-teal-500/40 transition flex items-center gap-1.5 min-h-[40px]">
+              Get Started <ArrowRight size={13} />
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary-500 via-primary-600 to-primary-700 text-white">
-        <div className="absolute inset-0 opacity-10"
-          style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #2EC4B6 0%, transparent 50%), radial-gradient(circle at 70% 80%, #ffffff 0%, transparent 40%)' }} />
-        <div className="relative max-w-7xl mx-auto px-6 py-24 md:py-32">
+      {/* ── HERO ────────────────────────────────────────────────────────── */}
+      <section ref={heroRef} className="relative min-h-screen flex items-center pt-14 overflow-hidden">
+        <motion.div style={{ y: heroBgY }} className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0"
+            style={{ background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(46,196,182,0.15) 0%, transparent 60%)' }} />
+          <div className="absolute top-1/4 -left-32 w-96 h-96 bg-[#1B3A6B]/40 rounded-full blur-[100px]" />
+          <div className="absolute top-1/3 -right-32 w-80 h-80 bg-teal-500/15 rounded-full blur-[120px]" />
+          <div className="absolute inset-0 opacity-[0.015]"
+            style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
+        </motion.div>
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 lg:py-28 w-full">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+
+            {/* Left */}
+            <motion.div variants={stagger(0.12)} initial="hidden" animate="show">
+              <motion.div variants={fadeUp}>
+                <span className="inline-flex items-center gap-2 border border-teal-500/30 bg-teal-500/10 text-teal-300 text-xs font-semibold px-3 py-1.5 rounded-full mb-6 backdrop-blur-sm">
+                  <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-pulse" />
+                  Clinical Decision Support System
+                </span>
+              </motion.div>
+
+              <motion.h1 variants={fadeUp} className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.08] tracking-tight mb-5">
+                Catch Prescription
+                <br />
+                Errors{' '}
+                <span className="bg-gradient-to-r from-teal-400 to-teal-300 bg-clip-text text-transparent">
+                  Before They
+                </span>
+                <br />
+                Reach Patients
+              </motion.h1>
+
+              <motion.p variants={fadeUp} className="text-base sm:text-lg text-slate-400 leading-relaxed mb-8 max-w-lg">
+                RxDetect combines deterministic rule-based checks, clinical AI reasoning, and real-time drug validation to detect discrepancies in handwritten and printed prescriptions.
+              </motion.p>
+
+              <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3 mb-10">
+                <Link href="/signup"
+                  className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-teal-400 hover:from-teal-400 hover:to-teal-300 text-white font-semibold px-6 py-3.5 rounded-xl shadow-lg shadow-teal-500/25 hover:shadow-teal-500/40 transition-all min-h-[48px]">
+                  Start Validating <ArrowRight size={16} />
+                </Link>
+                <Link href="/login"
+                  className="inline-flex items-center justify-center gap-2 border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-medium px-6 py-3.5 rounded-xl transition-all min-h-[48px]">
+                  Sign In
+                </Link>
+              </motion.div>
+
+              <motion.div variants={fadeUp} className="flex flex-wrap gap-3">
+                {[
+                  { icon: Database,     label: 'FDA + RxNorm Data' },
+                  { icon: ShieldCheck,  label: 'HIPAA-aware Design' },
+                  { icon: Activity,     label: 'Real-time Analysis' },
+                  { icon: CheckCircle2, label: 'Audit-ready Reports' },
+                ].map(b => (
+                  <span key={b.label} className="inline-flex items-center gap-1.5 text-xs text-slate-400 border border-white/10 bg-white/5 px-3 py-1.5 rounded-full">
+                    <b.icon size={11} className="text-teal-400" />
+                    {b.label}
+                  </span>
+                ))}
+              </motion.div>
+            </motion.div>
+
+            {/* Right */}
+            <div className="relative">
+              <DashboardMockup />
+            </div>
+          </div>
+
+          {/* Stats bar */}
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="max-w-3xl"
+            transition={{ delay: 0.9, duration: 0.5 }}
+            className="mt-20 border border-white/5 bg-white/3 backdrop-blur-sm rounded-2xl grid grid-cols-3 divide-x divide-white/5 overflow-hidden"
           >
-            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur border border-white/20 text-sm font-medium px-4 py-1.5 rounded-full mb-8">
-              <ShieldCheck size={14} />
-              Clinical Decision Support System
-            </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight tracking-tight mb-6">
-              AI-Assisted<br />
-              <span className="text-teal-300">Prescription Safety</span><br />
-              System
-            </h1>
-            <p className="text-lg md:text-xl text-blue-100 leading-relaxed mb-10 max-w-2xl">
-              Detect prescription discrepancies before they reach the patient. Combines deterministic rule-based checks with clinical AI reasoning, validated by RxNorm and FDA drug data.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <Link href="/signup" className="inline-flex items-center gap-2 bg-teal-400 hover:bg-teal-300 text-primary-800 font-semibold px-7 py-3 rounded-xl transition shadow-lg">
-                Start Validating <ArrowRight size={16} />
-              </Link>
-              <Link href="/login" className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/30 font-medium px-7 py-3 rounded-xl transition">
-                Sign In
-              </Link>
-            </div>
+            {[
+              { val: '5',    label: 'Discrepancy Types', sub: 'Fully covered' },
+              { val: '27',   label: 'Clinical Parameters', sub: 'Per prescription' },
+              { val: '100%', label: 'Audit Trail', sub: 'Every analysis logged' },
+            ].map(s => (
+              <div key={s.label} className="text-center py-5 px-3">
+                <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-teal-400 to-teal-300 bg-clip-text text-transparent">{s.val}</p>
+                <p className="text-xs sm:text-sm text-white mt-0.5 font-medium">{s.label}</p>
+                <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">{s.sub}</p>
+              </div>
+            ))}
           </motion.div>
         </div>
+      </section>
 
-        {/* Stat bar */}
-        <div className="relative border-t border-white/10 bg-white/5">
-          <div className="max-w-7xl mx-auto px-6 py-5 grid grid-cols-3 md:grid-cols-3 divide-x divide-white/10">
-            {[
-              { val: '5', label: 'Discrepancy Types Detected' },
-              { val: 'FDA', label: 'Drug Data Source' },
-              { val: '100%', label: 'Audit Trail' },
-            ].map(({ val, label }) => (
-              <div key={label} className="text-center px-4">
-                <p className="text-2xl font-bold text-teal-300">{val}</p>
-                <p className="text-sm text-blue-200 mt-0.5">{label}</p>
-              </div>
+      {/* ── FEATURES ────────────────────────────────────────────────────── */}
+      <section className="relative py-20 sm:py-28">
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse 60% 40% at 50% 100%, rgba(27,58,107,0.35) 0%, transparent 60%)' }} />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
+          <motion.div variants={stagger(0.1)} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-80px' }} className="text-center mb-14">
+            <motion.p variants={fadeUp} className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-400 mb-3">Core Capabilities</motion.p>
+            <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl font-bold text-white">Built for clinical accuracy</motion.h2>
+            <motion.p variants={fadeUp} className="text-slate-400 mt-4 max-w-xl mx-auto text-sm sm:text-base">
+              Every prescription is processed through a multi-layer AI pipeline designed with pharmacists and clinical safety in mind.
+            </motion.p>
+          </motion.div>
+          <motion.div variants={stagger(0.1)} initial="hidden" whileInView="show" viewport={{ once: true, margin: '-60px' }} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {FEATURES.map(f => (
+              <motion.div key={f.title} variants={fadeUp}
+                className={`group relative border border-white/8 bg-white/3 hover:bg-white/6 rounded-2xl p-6 transition-all duration-300 shadow-lg hover:shadow-xl cursor-default ${f.glow} ${f.border}`}>
+                <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{ background: 'radial-gradient(circle at 30% 20%, rgba(46,196,182,0.04) 0%, transparent 60%)' }} />
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${f.iconBg}`}>
+                  <f.icon size={20} />
+                </div>
+                <h3 className="font-semibold text-white mb-2 text-sm sm:text-base">{f.title}</h3>
+                <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="max-w-7xl mx-auto px-6 py-20">
-        <div className="text-center mb-14">
-          <p className="text-xs font-semibold uppercase tracking-widest text-teal-500 mb-3">Core Capabilities</p>
-          <h2 className="text-3xl md:text-4xl font-bold text-primary-500">Built for clinical accuracy</h2>
-          <p className="text-slate-500 mt-4 max-w-xl mx-auto">
-            Every prescription goes through a multi-layer validation pipeline designed with pharmacists and clinical safety in mind.
-          </p>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {FEATURES.map((f, i) => (
-            <motion.div
-              key={f.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="card hover:shadow-card-hover transition-shadow group"
-            >
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${f.color}`}>
-                <f.icon size={18} />
-              </div>
-              <h3 className="font-semibold text-slate-800 mb-2">{f.title}</h3>
-              <p className="text-sm text-slate-500 leading-relaxed">{f.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
+      {/* ── HOW IT WORKS ────────────────────────────────────────────────── */}
+      <section className="py-20 sm:py-28 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#1B3A6B]/20 to-transparent pointer-events-none" />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
+          <motion.div variants={stagger(0.1)} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-14">
+            <motion.p variants={fadeUp} className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-400 mb-3">How It Works</motion.p>
+            <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl font-bold text-white">From upload to report in seconds</motion.h2>
+          </motion.div>
 
-      {/* Pipeline */}
-      <section className="bg-slate-50 py-20">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-14">
-            <p className="text-xs font-semibold uppercase tracking-widest text-teal-500 mb-3">How It Works</p>
-            <h2 className="text-3xl font-bold text-primary-500">From upload to report in seconds</h2>
-          </div>
-          <div className="flex flex-col md:flex-row items-center gap-0 md:gap-0 max-w-4xl mx-auto">
-            {PIPELINE.map((p, i) => (
-              <div key={p.step} className="flex flex-col md:flex-row items-center flex-1">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.12 }}
-                  className="flex flex-col items-center text-center px-4 py-2"
-                >
-                  <div className="w-12 h-12 bg-primary-500 text-white rounded-xl flex items-center justify-center font-bold text-sm mb-3 shadow">
-                    {p.step}
+          {/* Desktop timeline */}
+          <div className="hidden sm:block">
+            <div className="relative flex items-start justify-between max-w-4xl mx-auto">
+              <div className="absolute top-6 left-12 right-12 h-px bg-gradient-to-r from-teal-500/30 via-[#1B3A6B]/60 to-teal-500/30" />
+              {PIPELINE.map((p, i) => (
+                <motion.div key={p.step} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }} transition={{ delay: i * 0.12, duration: 0.5 }}
+                  className="relative flex flex-col items-center text-center flex-1 group">
+                  <div className="relative z-10 w-12 h-12 bg-gradient-to-br from-[#1B3A6B] to-[#0f2548] border border-teal-500/30 group-hover:border-teal-400/60 text-white rounded-xl flex items-center justify-center mb-4 shadow-lg transition-all duration-300 group-hover:shadow-teal-500/20">
+                    <p.icon size={18} className="text-teal-300" />
                   </div>
-                  <p className="font-semibold text-slate-800 text-sm">{p.label}</p>
-                  <p className="text-xs text-slate-400 mt-1">{p.desc}</p>
+                  <p className="text-[10px] font-bold text-teal-400 tracking-widest mb-1">{p.step}</p>
+                  <p className="font-semibold text-white text-sm">{p.label}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{p.desc}</p>
                 </motion.div>
-                {i < PIPELINE.length - 1 && (
-                  <ChevronRight size={16} className="text-slate-300 hidden md:block flex-shrink-0" />
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* Discrepancy types */}
-      <section className="max-w-7xl mx-auto px-6 py-20">
-        <div className="text-center mb-12">
-          <p className="text-xs font-semibold uppercase tracking-widest text-teal-500 mb-3">Detection Coverage</p>
-          <h2 className="text-3xl font-bold text-primary-500">Every discrepancy type, covered</h2>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {[
-            { label: 'No Discrepancy', color: 'bg-green-50 border-green-200 text-green-700',  desc: 'Clean prescription' },
-            { label: 'Omission',       color: 'bg-amber-50 border-amber-200 text-amber-700',   desc: 'Missing required info' },
-            { label: 'Commission',     color: 'bg-red-50 border-red-200 text-red-700',         desc: 'Incorrect entry' },
-            { label: 'Inconsistency',  color: 'bg-orange-50 border-orange-200 text-orange-700',desc: 'Internal conflict' },
-            { label: 'Illegibility',   color: 'bg-gray-100 border-gray-300 text-gray-700',     desc: 'Unreadable content' },
-          ].map((t, i) => (
-            <motion.div
-              key={t.label}
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.08 }}
-              className={`border rounded-2xl p-5 text-center ${t.color}`}
-            >
-              <p className="font-bold text-sm">{t.label}</p>
-              <p className="text-xs mt-1 opacity-70">{t.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* Trust */}
-      <section className="bg-primary-500 text-white py-20">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold">Designed for clinical trust</h2>
-            <p className="text-blue-200 mt-3">Built to the standards healthcare professionals expect</p>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {TRUST.map((t, i) => (
-              <motion.div
-                key={t.label}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="bg-white/10 backdrop-blur border border-white/10 rounded-2xl p-5"
-              >
-                <t.icon size={20} className="text-teal-300 mb-3" />
-                <p className="font-semibold">{t.label}</p>
-                <p className="text-sm text-blue-200 mt-1">{t.sub}</p>
+          {/* Mobile stacked */}
+          <div className="sm:hidden flex flex-col gap-3 max-w-sm mx-auto">
+            {PIPELINE.map((p, i) => (
+              <motion.div key={p.step} initial={{ opacity: 0, x: -16 }} whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                className="flex items-center gap-4 border border-white/8 bg-white/3 rounded-xl px-4 py-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-[#1B3A6B] to-[#0f2548] border border-teal-500/30 text-teal-300 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <p.icon size={16} />
+                </div>
+                <div>
+                  <p className="font-semibold text-white text-sm">{p.label}</p>
+                  <p className="text-xs text-slate-500">{p.desc}</p>
+                </div>
+                {i < PIPELINE.length - 1 && <ChevronRight size={14} className="text-slate-600 ml-auto flex-shrink-0" />}
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="max-w-3xl mx-auto px-6 py-24 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-        >
-          <h2 className="text-3xl md:text-4xl font-bold text-primary-500 mb-4">
-            Ready to validate your first prescription?
-          </h2>
-          <p className="text-slate-500 mb-8">
-            Join clinical teams using RxDetect to catch errors before they reach patients.
-          </p>
-          <Link href="/signup" className="btn-primary text-base px-8 py-3">
-            Get Started Free <ArrowRight size={16} />
-          </Link>
-        </motion.div>
+      {/* ── DISCREPANCY TYPES ───────────────────────────────────────────── */}
+      <section className="py-20 sm:py-28">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <motion.div variants={stagger(0.1)} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-12">
+            <motion.p variants={fadeUp} className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-400 mb-3">Detection Coverage</motion.p>
+            <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl font-bold text-white">Every discrepancy type, covered</motion.h2>
+          </motion.div>
+          <motion.div variants={stagger(0.1)} initial="hidden" whileInView="show" viewport={{ once: true }} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {DISCREPANCY_TYPES.map(t => (
+              <motion.div key={t.label} variants={fadeUp} className={`border rounded-2xl p-4 sm:p-5 text-center ring-1 ${t.ring}`}>
+                <div className={`w-2 h-2 rounded-full ${t.dot} mx-auto mb-3`} />
+                <p className="font-bold text-sm text-white">{t.label}</p>
+                <p className="text-xs mt-1.5 text-slate-400 leading-tight">{t.desc}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-100 bg-slate-50 py-8">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-400">
+      {/* ── TRUST ───────────────────────────────────────────────────────── */}
+      <section className="py-20 sm:py-28 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#1B3A6B] via-[#1a3560] to-[#0f2548]" />
+        <div className="absolute inset-0"
+          style={{ background: 'radial-gradient(ellipse 70% 80% at 20% 50%, rgba(46,196,182,0.15) 0%, transparent 50%)' }} />
+        <div className="absolute inset-0 opacity-[0.04]"
+          style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
+          <motion.div variants={stagger(0.1)} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-12">
+            <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl font-bold text-white">Designed for clinical trust</motion.h2>
+            <motion.p variants={fadeUp} className="text-blue-200 mt-3 text-sm sm:text-base">Built to the standards healthcare professionals expect</motion.p>
+          </motion.div>
+          <motion.div variants={stagger(0.1)} initial="hidden" whileInView="show" viewport={{ once: true }} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {TRUST_BADGES.map(t => (
+              <motion.div key={t.label} variants={fadeUp}
+                className="bg-white/8 hover:bg-white/12 border border-white/10 hover:border-white/20 rounded-2xl p-5 transition-all duration-300 group">
+                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-teal-500/20 transition-colors">
+                  <t.icon size={18} className="text-teal-300" />
+                </div>
+                <p className="font-semibold text-white text-sm sm:text-base">{t.label}</p>
+                <p className="text-xs sm:text-sm text-blue-200 mt-1">{t.sub}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── CTA ─────────────────────────────────────────────────────────── */}
+      <section className="relative py-24 sm:py-32 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse 60% 70% at 50% 50%, rgba(46,196,182,0.1) 0%, transparent 60%)' }} />
+        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 text-center">
+          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-400 mb-4">Get Started Today</p>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-5 leading-tight">
+              Ready to validate your
+              <br />
+              <span className="bg-gradient-to-r from-teal-400 to-teal-300 bg-clip-text text-transparent">first prescription?</span>
+            </h2>
+            <p className="text-slate-400 mb-10 text-sm sm:text-base max-w-xl mx-auto">
+              Join clinical teams using RxDetect to catch errors before they reach patients. No setup required — start analysing immediately.
+            </p>
+            <Link href="/signup"
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-teal-500 to-teal-400 hover:from-teal-400 hover:to-teal-300 text-white font-semibold text-base px-8 py-4 rounded-xl shadow-lg shadow-teal-500/30 hover:shadow-teal-500/50 transition-all">
+              Get Started Free <ArrowRight size={18} />
+            </Link>
+            <p className="text-xs text-slate-500 mt-4">No credit card required. Clinical use only.</p>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ──────────────────────────────────────────────────────── */}
+      <footer className="border-t border-white/5 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={16} className="text-primary-400" />
-            <span className="font-semibold text-primary-500">RxDetect</span>
+            <div className="w-5 h-5 bg-gradient-to-br from-teal-400 to-[#1B3A6B] rounded flex items-center justify-center">
+              <ShieldCheck size={10} className="text-white" />
+            </div>
+            <span className="font-semibold text-slate-300">RxDetect</span>
             <span>— AI-Assisted Prescription Safety</span>
           </div>
           <p>For clinical use only. Always verify with a licensed pharmacist.</p>

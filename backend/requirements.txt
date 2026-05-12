@@ -48,6 +48,8 @@ regex==2024.5.15
 
 # --- Drug Validation APIs ---
 requests==2.32.3                 # sync HTTP for RxNorm / OpenFDA calls
+urllib3>=1.26.0,<3               # pinned for requests 2.32 compatibility — avoids RequestsDependencyWarning
+charset-normalizer>=2.0.0,<4    # pinned for requests 2.32 compatibility
 aiohttp==3.9.5                   # async HTTP variant
 
 # --- ML ---

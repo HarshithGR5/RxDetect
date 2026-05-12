@@ -1,6 +1,7 @@
 """
 reports.py — API v1
-PDF report generation and download.
+PDF report generation and streaming download.
+PDFs are generated in-memory and streamed directly — no disk storage needed.
 """
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
@@ -40,8 +41,55 @@ def _get_analyzed_prescription(db: Session, prescription_id: str):
     return rx, rx.report
 
 
+def _build_result(report):
+    """Reconstruct a DiscrepancyResult-compatible object from DB report."""
+    from app.services.aggregator import DiscrepancyResult
+    return DiscrepancyResult(
+        label            = report.label,
+        confidence       = report.confidence,
+        rule_label       = report.rule_label or "N/A",
+        llm_label        = report.llm_label or "N/A",
+        llm_confidence   = report.llm_confidence or 0.0,
+        llm_reason       = report.llm_reason or "",
+        evidence_sources = report.evidence_sources or [],
+        rules_triggered  = report.rules_triggered or [],
+        ml_label         = report.ml_label,
+        ml_confidence    = report.ml_confidence,
+        ml_features      = report.ml_features,
+        consensus        = report.consensus or "N/A",
+        flagged_fields   = [],
+        recommendations  = [],
+        clinical_summary = [],
+        checklist_items  = report.checklist_items or [],
+    )
+
+
+def _generate_pdf(rx, report) -> bytes:
+    from app.services.report_generator import generate_pdf_bytes
+    result = _build_result(report)
+    return generate_pdf_bytes(
+        prescription_id  = str(rx.id),
+        extracted_fields = rx.extracted_fields or {},
+        result           = result,
+    )
+
+
+def _stream_pdf(pdf_bytes: bytes, prescription_id: str) -> StreamingResponse:
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="report_{prescription_id[:8]}.pdf"',
+            "Content-Length":      str(len(pdf_bytes)),
+            "Cache-Control":       "no-store",
+        },
+    )
+
+
 # =========================================================
-# GENERATE REPORT
+# GENERATE + STREAM REPORT  (POST)
+# Generates PDF in memory and streams it immediately.
+# No file is saved to disk.
 # =========================================================
 
 @router.post("/generate/{prescription_id}")
@@ -50,57 +98,21 @@ def generate_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Generate (or regenerate) the PDF report."""
+    """Generate the PDF report in memory and stream it to the client."""
 
     rx, report = _get_analyzed_prescription(db, prescription_id)
+    pdf_bytes  = _generate_pdf(rx, report)
 
-    from app.services.report_generator import generate_pdf_bytes, save_pdf_locally
-    from app.services.aggregator import DiscrepancyResult
-
-    # Reconstruct result object
-    result = DiscrepancyResult(
-        label=report.label,
-        confidence=report.confidence,
-        rule_label=report.rule_label or "N/A",
-        llm_label=report.llm_label or "N/A",
-        llm_confidence=report.llm_confidence or 0.0,
-        llm_reason=report.llm_reason or "",
-        evidence_sources=report.evidence_sources or [],
-        rules_triggered=report.rules_triggered or [],
-        ml_label=report.ml_label,
-        ml_confidence=report.ml_confidence,
-        ml_features=report.ml_features,
-        consensus=report.consensus or "N/A",
-        flagged_fields=[],
-        recommendations=[],
-    )
-
-    # ✅ FIXED ARGUMENT NAME
-    pdf_bytes = generate_pdf_bytes(
-        prescription_id=str(rx.id),
-        extracted_fields=rx.extracted_fields or {},
-        result=result,
-    )
-
-    # Save locally
-    local_path = save_pdf_locally(pdf_bytes, str(rx.id))
-
-    report.pdf_local_path = local_path
+    # Update timestamp so the API reflects when it was last generated
     report.pdf_generated_at = datetime.utcnow()
-
     db.commit()
 
-    return {
-        "message": "Report generated",
-        "prescription_id": prescription_id,
-        "report_id": str(report.id),
-        "pdf_path": local_path,
-        "generated_at": report.pdf_generated_at.isoformat(),
-    }
+    return _stream_pdf(pdf_bytes, prescription_id)
 
 
 # =========================================================
-# DOWNLOAD REPORT
+# DOWNLOAD REPORT  (GET)
+# Also generates in memory — no disk file needed.
 # =========================================================
 
 @router.get("/download/{prescription_id}")
@@ -109,59 +121,11 @@ def download_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Download PDF report."""
+    """Stream the PDF report, generating it on-the-fly."""
 
     rx, report = _get_analyzed_prescription(db, prescription_id)
-
-    from app.services.report_generator import generate_pdf_bytes, save_pdf_locally
-    from app.services.aggregator import DiscrepancyResult
-
-    # Generate if missing
-    if not report.pdf_local_path:
-        result = DiscrepancyResult(
-            label=report.label,
-            confidence=report.confidence,
-            rule_label=report.rule_label or "",
-            llm_label=report.llm_label or "",
-            llm_confidence=report.llm_confidence or 0.0,
-            llm_reason=report.llm_reason or "",
-            evidence_sources=report.evidence_sources or [],
-            rules_triggered=report.rules_triggered or [],
-            ml_label=report.ml_label,
-            ml_confidence=report.ml_confidence,
-            ml_features=report.ml_features,
-            consensus=report.consensus or "N/A",
-            flagged_fields=[],
-            recommendations=[],
-            clinical_summary=[],
-        )
-
-        pdf_bytes = generate_pdf_bytes(
-            str(rx.id),
-            rx.extracted_fields or {},
-            result,
-        )
-
-        report.pdf_local_path = save_pdf_locally(pdf_bytes, str(rx.id))
-        db.commit()
-
-    # Read file
-    from pathlib import Path
-    local_path = Path(report.pdf_local_path)
-
-    if not local_path.exists():
-        raise HTTPException(status_code=404, detail="Report file not found")
-
-    pdf_bytes = local_path.read_bytes()
-
-    return StreamingResponse(
-        io.BytesIO(pdf_bytes),
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="report_{prescription_id[:8]}.pdf"',
-            "Content-Length": str(len(pdf_bytes)),
-        },
-    )
+    pdf_bytes  = _generate_pdf(rx, report)
+    return _stream_pdf(pdf_bytes, prescription_id)
 
 
 # =========================================================
@@ -196,19 +160,19 @@ def list_reports(
     )
 
     return {
-        "total": total,
-        "page": page,
+        "total":     total,
+        "page":      page,
         "page_size": page_size,
         "items": [
             {
-                "report_id": str(r.id),
+                "report_id":       str(r.id),
                 "prescription_id": str(r.prescription_id),
-                "label": r.label,
-                "confidence": r.confidence,
-                "consensus": r.consensus,
-                "pdf_ready": bool(r.pdf_local_path),  # ✅ FIXED
-                "created_at": r.created_at.isoformat(),
+                "label":           r.label,
+                "confidence":      r.confidence,
+                "consensus":       r.consensus,
+                "pdf_ready":       True,   # always generatable on-demand
+                "created_at":      r.created_at.isoformat(),
             }
-            for r in items  # ✅ FIXED
+            for r in items
         ],
     }

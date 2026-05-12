@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -7,9 +7,8 @@ import {
   ArrowLeft, Download, RefreshCw, FileText, Brain,
   BookOpen, ShieldCheck, ChevronDown, ChevronUp,
   CheckCircle2, AlertCircle, Send, Loader2,
-  ClipboardList, Leaf
+  ClipboardList, Leaf, XCircle, Minus
 } from 'lucide-react'
-import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import DiscrepancyBadge from '@/components/DiscrepancyBadge'
 import ClarityIndicator from '@/components/ClarityIndicator'
@@ -20,9 +19,22 @@ import StatusPill from '@/components/StatusPill'
 import ClinicalChecklistModal from '@/components/ClinicalChecklistModal'
 import { Skeleton } from '@/components/Skeleton'
 import { prescriptionApi, reportApi } from '@/lib/api'
-import { formatDate, formatConfidence, LABEL_CONFIG } from '@/lib/utils'
-import type { DiscrepancyLabel, PrescriptionStatus, AnalysisResult } from '@/lib/types'
+import { formatDate, formatConfidence, LABEL_CONFIG, cn } from '@/lib/utils'
+import type { DiscrepancyLabel, PrescriptionStatus, AnalysisResult, ChecklistItem } from '@/lib/types'
 import toast from 'react-hot-toast'
+
+function ChecklistResultIcon({ result }: { result: ChecklistItem['result'] | undefined }) {
+  if (!result || result === 'unknown') return <Minus size={12} className="text-slate-300" />
+  if (result === 'yes')     return <CheckCircle2 size={12} className="text-green-500" />
+  if (result === 'no')      return <XCircle size={12} className="text-red-500" />
+  if (result === 'na')      return <span className="text-[9px] font-medium text-slate-400">N/A</span>
+  if (result === 'partial') return (
+    <span className="inline-flex items-center justify-center w-3 h-3 rounded-full bg-amber-100">
+      <span className="text-[7px] font-bold text-amber-600">P</span>
+    </span>
+  )
+  return <Minus size={12} className="text-slate-300" />
+}
 
 export default function AnalysisPage() {
   const { id } = useParams<{ id: string }>()
@@ -36,8 +48,8 @@ export default function AnalysisPage() {
   const [activeTab,       setActiveTab]        = useState<'fields' | 'rules' | 'evidence'>('fields')
   const [showChecklist,   setShowChecklist]    = useState(false)
   const [showTherapy,     setShowTherapy]      = useState(false)
+  const [rulesCollapsed,  setRulesCollapsed]   = useState(false)
 
-  // Poll status if not yet analyzed
   const { data: statusData } = useQuery({
     queryKey: ['rx-status', id],
     queryFn: () => prescriptionApi.getStatus(id).then(r => r.data),
@@ -47,7 +59,6 @@ export default function AnalysisPage() {
     },
   })
 
-  // Fetch result
   const { data: result, isLoading, error: resultError, refetch } = useQuery<AnalysisResult>({
     queryKey: ['rx-result', id],
     queryFn: () => prescriptionApi.getResult(id).then(r => r.data),
@@ -55,7 +66,6 @@ export default function AnalysisPage() {
     retry: false,
   })
 
-  // Feedback mutation
   const feedbackMut = useMutation({
     mutationFn: () =>
       prescriptionApi.submitFeedback(id, feedbackLabel, feedbackNote, feedbackCorrect ?? true),
@@ -66,7 +76,6 @@ export default function AnalysisPage() {
     onError: () => toast.error('Failed to submit feedback'),
   })
 
-  // Report generation + authenticated download
   const reportMut = useMutation({
     mutationFn: async () => {
       await reportApi.generate(id)
@@ -81,23 +90,25 @@ export default function AnalysisPage() {
   const fields       = result?.extracted_fields
   const label        = discrepancy?.label as DiscrepancyLabel | undefined
   const cfg          = label ? LABEL_CONFIG[label] : null
-  const checklistItems = result?.checklist_items ?? []
+  const checklistItems     = result?.checklist_items ?? []
   const therapySuggestions = fields?.therapy_suggestions ?? []
 
-  // Checklist quick-stats
-  const checklistNo = checklistItems.filter(i => i.result === 'no').length
-  const checklistYes = checklistItems.filter(i => i.result === 'yes').length
+  const checklistNo      = checklistItems.filter(i => i.result === 'no').length
+  const checklistYes     = checklistItems.filter(i => i.result === 'yes').length
+  const checklistPartial = checklistItems.filter(i => i.result === 'partial').length
+
+  const CATEGORY_ORDER = ['patient', 'prescriber', 'drug', 'safety', 'completeness']
+  const categorised = CATEGORY_ORDER.map(cat => ({
+    cat,
+    items: checklistItems.filter(i => i.category === cat),
+  })).filter(g => g.items.length > 0)
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 has-bottom-nav">
       <Navbar />
 
-      {/* Checklist modal */}
       {showChecklist && checklistItems.length > 0 && (
-        <ClinicalChecklistModal
-          items={checklistItems}
-          onClose={() => setShowChecklist(false)}
-        />
+        <ClinicalChecklistModal items={checklistItems} onClose={() => setShowChecklist(false)} />
       )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -119,21 +130,10 @@ export default function AnalysisPage() {
               <RefreshCw size={13} />
               <span className="hidden sm:inline">Refresh</span>
             </button>
-            {result && (
-              <button
-                onClick={() => reportMut.mutate()}
-                disabled={reportMut.isPending}
-                className="btn-secondary text-sm"
-              >
-                {reportMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                <span className="hidden sm:inline">Download Report</span>
-                <span className="sm:hidden">PDF</span>
-              </button>
-            )}
           </div>
         </div>
 
-        {/* Quick-stats bar (when result ready) */}
+        {/* Quick-stats bar */}
         {result && checklistItems.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
             <button
@@ -148,6 +148,7 @@ export default function AnalysisPage() {
               <p className="text-xs text-slate-400 mt-0.5">
                 <span className="text-green-600 font-medium">{checklistYes} pass</span>
                 {checklistNo > 0 && <span className="text-red-500 font-medium"> · {checklistNo} fail</span>}
+                {checklistPartial > 0 && <span className="text-amber-500 font-medium"> · {checklistPartial} partial</span>}
               </p>
             </button>
             <div className="card p-3 sm:p-4">
@@ -155,9 +156,7 @@ export default function AnalysisPage() {
                 <ShieldCheck size={14} className="text-teal-500" />
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Confidence</span>
               </div>
-              <p className="text-xl font-bold text-slate-800">
-                {formatConfidence(discrepancy?.confidence ?? 0)}
-              </p>
+              <p className="text-xl font-bold text-slate-800">{formatConfidence(discrepancy?.confidence ?? 0)}</p>
               <p className="text-xs text-slate-400 mt-0.5">System score</p>
             </div>
             <div className="card p-3 sm:p-4">
@@ -169,12 +168,10 @@ export default function AnalysisPage() {
               <p className="text-xs text-slate-400 mt-0.5">Validation rules</p>
             </div>
             {therapySuggestions.length > 0 ? (
-              <button
-                onClick={() => setShowTherapy(v => !v)}
-                className="card p-3 sm:p-4 text-left hover:border-teal-200 hover:shadow-md transition group"
-              >
+              <button onClick={() => setShowTherapy(v => !v)}
+                className="card p-3 sm:p-4 text-left hover:border-teal-200 hover:shadow-md transition group">
                 <div className="flex items-center gap-2 mb-1">
-                  <Leaf size={14} className="text-teal-500 group-hover:text-teal-600 transition" />
+                  <Leaf size={14} className="text-teal-500" />
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Therapy</span>
                 </div>
                 <p className="text-xl font-bold text-slate-800">{therapySuggestions.length}</p>
@@ -227,19 +224,14 @@ export default function AnalysisPage() {
           )}
         </AnimatePresence>
 
-        {/* Checklist button (mobile-friendly, shown when checklist available) */}
+        {/* Mobile checklist shortcut */}
         {result && checklistItems.length > 0 && (
           <div className="flex gap-2 mb-5 sm:hidden">
-            <button
-              onClick={() => setShowChecklist(true)}
-              className="flex-1 btn-secondary text-sm py-2"
-            >
+            <button onClick={() => setShowChecklist(true)} className="flex-1 btn-secondary text-sm py-2">
               <ClipboardList size={14} />
               View 27-param Checklist
               {checklistNo > 0 && (
-                <span className="ml-1 bg-red-100 text-red-600 text-xs px-1.5 py-0.5 rounded-full">
-                  {checklistNo}
-                </span>
+                <span className="ml-1 bg-red-100 text-red-600 text-xs px-1.5 py-0.5 rounded-full">{checklistNo}</span>
               )}
             </button>
           </div>
@@ -285,14 +277,12 @@ export default function AnalysisPage() {
           </div>
         )}
 
-        {/* Main analysis layout */}
+        {/* ── Main 3-column layout ── */}
         {result && discrepancy && fields && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="grid lg:grid-cols-3 gap-5 sm:gap-6"
-          >
-            {/* ── LEFT: Extracted Fields ─────────────────────────────────── */}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="grid lg:grid-cols-3 gap-5 sm:gap-6">
+
+            {/* ── LEFT: Extracted Fields ── */}
             <div className="lg:col-span-1 space-y-4">
               <div className="card">
                 <div className="flex items-center gap-2 mb-4">
@@ -301,9 +291,9 @@ export default function AnalysisPage() {
                   {checklistItems.length > 0 && (
                     <button
                       onClick={() => setShowChecklist(true)}
-                      className="ml-auto flex items-center gap-1 text-xs font-medium text-primary-500
-                                 bg-primary-50 px-2.5 py-1 rounded-lg hover:bg-primary-100 transition
-                                 hidden sm:flex"
+                      className="ml-auto hidden sm:flex items-center gap-1 text-xs font-medium
+                                 text-primary-500 bg-primary-50 px-2.5 py-1 rounded-lg
+                                 hover:bg-primary-100 transition"
                     >
                       <ClipboardList size={12} />
                       Checklist
@@ -316,14 +306,8 @@ export default function AnalysisPage() {
 
                 {/* Clarity indicators */}
                 <div className="space-y-2 mb-4 pb-4 border-b border-slate-50">
-                  <ClarityIndicator
-                    score={fields.overall_legibility_score ?? 0}
-                    label="OCR Readability"
-                  />
-                  <ClarityIndicator
-                    score={discrepancy.confidence ?? 0}
-                    label="System Confidence"
-                  />
+                  <ClarityIndicator score={fields.overall_legibility_score ?? 0} label="OCR Readability" />
+                  <ClarityIndicator score={discrepancy.confidence ?? 0} label="System Confidence" />
                 </div>
 
                 {/* Mobile tab switcher */}
@@ -333,9 +317,7 @@ export default function AnalysisPage() {
                       key={t}
                       onClick={() => setActiveTab(t)}
                       className={`flex-1 text-xs font-medium py-2 rounded-lg capitalize transition touch-manipulation ${
-                        activeTab === t
-                          ? 'bg-primary-500 text-white'
-                          : 'bg-slate-100 text-slate-500'
+                        activeTab === t ? 'bg-primary-500 text-white' : 'bg-slate-100 text-slate-500'
                       }`}
                     >
                       {t}
@@ -349,16 +331,14 @@ export default function AnalysisPage() {
               </div>
             </div>
 
-            {/* ── CENTER: Discrepancy Result ─────────────────────────────── */}
+            {/* ── CENTER: Discrepancy Result + Collapsible Rule Findings ── */}
             <div className="lg:col-span-1 space-y-4">
-              {/* Main result card */}
               <div className={`card border-2 ${cfg?.border}`}>
                 <div className="flex items-center gap-2 mb-4">
                   <ShieldCheck size={15} className="text-primary-400" />
                   <h2 className="font-semibold text-slate-800">Validation Result</h2>
                 </div>
 
-                {/* Big badge */}
                 <div className={`rounded-xl p-5 sm:p-6 text-center mb-4 ${cfg?.bg}`}>
                   <DiscrepancyBadge label={label!} size="lg" animated />
                   <p className={`text-sm mt-3 font-medium ${cfg?.color}`}>{cfg?.text}</p>
@@ -370,7 +350,6 @@ export default function AnalysisPage() {
                   </div>
                 </div>
 
-                {/* Clinical reasoning */}
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Brain size={13} className="text-primary-400" />
@@ -384,26 +363,120 @@ export default function AnalysisPage() {
                 </div>
               </div>
 
-              {/* Rules triggered */}
+              {/* Collapsible Rule Findings */}
               <div className={`card ${activeTab !== 'rules' ? 'hidden lg:block' : ''}`}>
+                <button
+                  onClick={() => setRulesCollapsed(v => !v)}
+                  className="w-full flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={14} className="text-primary-400" />
+                    <h2 className="font-semibold text-slate-800 text-sm">Rule Findings</h2>
+                    {discrepancy.rules?.length > 0 && (
+                      <span className="text-xs font-semibold bg-primary-50 text-primary-600 px-2 py-0.5 rounded-full">
+                        {discrepancy.rules.length}
+                      </span>
+                    )}
+                  </div>
+                  {rulesCollapsed
+                    ? <ChevronDown size={14} className="text-slate-400" />
+                    : <ChevronUp size={14} className="text-slate-400" />
+                  }
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {!rulesCollapsed && (
+                    <motion.div
+                      key="rules-body"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-3">
+                        <RuleFindings rules={discrepancy.rules || []} />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* ── RIGHT: Evidence + Drug Validation + Audit + Pharmacist Correction ── */}
+            <div className="lg:col-span-1 space-y-4">
+
+              {/* Guideline Evidence */}
+              <div className={`card ${activeTab !== 'evidence' ? 'hidden lg:block' : ''}`}>
                 <div className="flex items-center gap-2 mb-4">
-                  <ShieldCheck size={14} className="text-primary-400" />
-                  <h2 className="font-semibold text-slate-800 text-sm">Rule Findings</h2>
-                  {discrepancy.rules?.length > 0 && (
-                    <span className="ml-auto text-xs font-semibold bg-primary-50 text-primary-600 px-2 py-0.5 rounded-full">
-                      {discrepancy.rules.length}
+                  <BookOpen size={15} className="text-primary-400" />
+                  <h2 className="font-semibold text-slate-800">Guideline Evidence</h2>
+                  {discrepancy.evidence_sources?.length > 0 && (
+                    <span className="ml-auto text-xs font-semibold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                      {discrepancy.evidence_sources.length}
                     </span>
                   )}
                 </div>
-                <RuleFindings rules={discrepancy.rules || []} />
+                <EvidencePanel sources={discrepancy.evidence_sources || []} />
               </div>
 
-              {/* Pharmacist feedback */}
+              {/* Drug Validation */}
+              {fields.drugs?.length > 0 && (
+                <div className="card">
+                  <div className="flex items-center gap-2 mb-3">
+                    <ShieldCheck size={14} className="text-teal-500" />
+                    <h2 className="font-semibold text-slate-800 text-sm">Drug Validation</h2>
+                  </div>
+                  <div className="space-y-2">
+                    {fields.drugs.map((drug, i) => (
+                      <div key={i} className="flex items-center gap-2 px-3 py-2 bg-teal-50 rounded-lg">
+                        <div className="w-2 h-2 rounded-full bg-teal-400 flex-shrink-0" />
+                        <span className="text-sm font-medium text-teal-700 flex-1 min-w-0 truncate">
+                          {drug.drug_name}
+                        </span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {drug.is_high_alert && (
+                            <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">HIGH-ALERT</span>
+                          )}
+                          {drug.narrow_therapeutic_index && (
+                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold">NTI</span>
+                          )}
+                          <span className="text-xs text-teal-500">{drug.dose || '—'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2">Validated against RxNorm &amp; OpenFDA</p>
+                </div>
+              )}
+
+              {/* Audit Report */}
+              <div className="card bg-primary-50 border-primary-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText size={14} className="text-primary-500" />
+                  <h2 className="font-semibold text-primary-700 text-sm">Audit Report</h2>
+                </div>
+                <p className="text-xs text-primary-600 leading-relaxed mb-4">
+                  Generate a structured PDF with all findings, clinical reasoning, checklist results,
+                  and guideline evidence.
+                </p>
+                <button
+                  onClick={() => reportMut.mutate()}
+                  disabled={reportMut.isPending}
+                  className="btn-primary w-full text-sm"
+                >
+                  {reportMut.isPending
+                    ? <><Loader2 size={13} className="animate-spin" /> Generating…</>
+                    : <><Download size={13} /> Generate &amp; Download</>
+                  }
+                </button>
+              </div>
+
+              {/* Pharmacist Correction — moved to right column */}
               <div className="card">
                 <button
                   onClick={() => setShowFeedback(!showFeedback)}
-                  className="w-full flex items-center justify-between text-sm font-semibold text-slate-700
-                             hover:text-primary-600 transition touch-manipulation"
+                  className="w-full flex items-center justify-between text-sm font-semibold
+                             text-slate-700 hover:text-primary-600 transition touch-manipulation"
                 >
                   <span className="flex items-center gap-2">
                     <Send size={13} />
@@ -455,12 +528,13 @@ export default function AnalysisPage() {
                               <button
                                 key={String(v)}
                                 onClick={() => setFeedbackCorrect(v)}
-                                className={`text-xs font-medium px-3 py-2 rounded-lg border transition touch-manipulation ${
+                                className={cn(
+                                  'text-xs font-medium px-3 py-2 rounded-lg border transition touch-manipulation',
                                   feedbackCorrect === v
                                     ? v ? 'bg-green-500 text-white border-green-500'
                                         : 'bg-red-500 text-white border-red-500'
                                     : 'bg-white text-slate-600 border-slate-200'
-                                }`}
+                                )}
                               >
                                 {v ? 'Yes' : 'No'}
                               </button>
@@ -482,7 +556,6 @@ export default function AnalysisPage() {
                   )}
                 </AnimatePresence>
 
-                {/* Prior feedback */}
                 {result.pharmacist_feedback?.label && (
                   <div className="mt-4 pt-4 border-t border-slate-50">
                     <p className="text-xs text-slate-400 mb-1">Last submitted</p>
@@ -503,75 +576,7 @@ export default function AnalysisPage() {
                   </div>
                 )}
               </div>
-            </div>
 
-            {/* ── RIGHT: Evidence Panel ──────────────────────────────────── */}
-            <div className="lg:col-span-1 space-y-4">
-              <div className={`card ${activeTab !== 'evidence' ? 'hidden lg:block' : ''}`}>
-                <div className="flex items-center gap-2 mb-4">
-                  <BookOpen size={15} className="text-primary-400" />
-                  <h2 className="font-semibold text-slate-800">Guideline Evidence</h2>
-                  {discrepancy.evidence_sources?.length > 0 && (
-                    <span className="ml-auto text-xs font-semibold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
-                      {discrepancy.evidence_sources.length}
-                    </span>
-                  )}
-                </div>
-                <EvidencePanel sources={discrepancy.evidence_sources || []} />
-              </div>
-
-              {/* Drug validation summary */}
-              {fields.drugs?.length > 0 && (
-                <div className="card">
-                  <div className="flex items-center gap-2 mb-3">
-                    <ShieldCheck size={14} className="text-teal-500" />
-                    <h2 className="font-semibold text-slate-800 text-sm">Drug Validation</h2>
-                  </div>
-                  <div className="space-y-2">
-                    {fields.drugs.map((drug, i) => (
-                      <div key={i} className="flex items-center gap-2 px-3 py-2 bg-teal-50 rounded-lg">
-                        <div className="w-2 h-2 rounded-full bg-teal-400 flex-shrink-0" />
-                        <span className="text-sm font-medium text-teal-700 flex-1 min-w-0 truncate">
-                          {drug.drug_name}
-                        </span>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {drug.is_high_alert && (
-                            <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">HIGH-ALERT</span>
-                          )}
-                          {drug.narrow_therapeutic_index && (
-                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold">NTI</span>
-                          )}
-                          <span className="text-xs text-teal-500">{drug.dose || '—'}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-400 mt-2">
-                    Validated against RxNorm & OpenFDA
-                  </p>
-                </div>
-              )}
-
-              {/* Report card */}
-              <div className="card bg-primary-50 border-primary-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <FileText size={14} className="text-primary-500" />
-                  <h2 className="font-semibold text-primary-700 text-sm">Audit Report</h2>
-                </div>
-                <p className="text-xs text-primary-600 leading-relaxed mb-4">
-                  Generate a structured PDF with all findings, clinical reasoning, checklist results, and guideline evidence.
-                </p>
-                <button
-                  onClick={() => reportMut.mutate()}
-                  disabled={reportMut.isPending}
-                  className="btn-primary w-full text-sm"
-                >
-                  {reportMut.isPending
-                    ? <><Loader2 size={13} className="animate-spin" /> Generating…</>
-                    : <><Download size={13} /> Generate & Download</>
-                  }
-                </button>
-              </div>
             </div>
           </motion.div>
         )}

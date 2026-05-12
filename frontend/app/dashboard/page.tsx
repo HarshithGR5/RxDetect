@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
   Upload, RefreshCw, FileText, CheckCircle2,
-  AlertTriangle, XCircle, Clock, ChevronRight,
+  AlertTriangle, Clock, ChevronRight,
   Search, Filter, Columns2, X
 } from 'lucide-react'
 import Navbar from '@/components/Navbar'
@@ -19,11 +19,11 @@ import { formatDate, cn } from '@/lib/utils'
 import type { PrescriptionListItem, PrescriptionStatus, DiscrepancyLabel, ReportListItem } from '@/lib/types'
 
 const STATUS_OPTS: { value: string; label: string }[] = [
-  { value: '',          label: 'All' },
-  { value: 'uploaded',  label: 'Uploaded' },
-  { value: 'processing',label: 'Processing' },
-  { value: 'analyzed',  label: 'Analysed' },
-  { value: 'failed',    label: 'Failed' },
+  { value: '',           label: 'All' },
+  { value: 'uploaded',   label: 'Uploaded' },
+  { value: 'processing', label: 'Processing' },
+  { value: 'analyzed',   label: 'Analysed' },
+  { value: 'failed',     label: 'Failed' },
 ]
 
 export default function DashboardPage() {
@@ -46,7 +46,6 @@ export default function DashboardPage() {
 
   const items: PrescriptionListItem[] = rxData?.items || []
   const total = rxData?.total || 0
-
   const reports: ReportListItem[] = reportData?.items || []
   const processing = items.filter(r => r.status === 'processing').length
   const failed     = items.filter(r => r.status === 'failed').length
@@ -60,11 +59,31 @@ export default function DashboardPage() {
       )
     : items
 
-  // Only analyzed prescriptions can be compared
+  // Only analysed prescriptions can be compared / selected
+  const analyzedItems    = filtered.filter(rx => rx.status === 'analyzed')
   const analyzedSelected = [...selected].filter(id => {
     const rx = items.find(r => r.id === id)
     return rx?.status === 'analyzed'
   })
+
+  const allAnalyzedSelected  = analyzedItems.length > 0 && analyzedItems.every(rx => selected.has(rx.id))
+  const someAnalyzedSelected = analyzedItems.some(rx => selected.has(rx.id))
+
+  function toggleSelectAll() {
+    if (allAnalyzedSelected) {
+      setSelected(prev => {
+        const next = new Set(prev)
+        analyzedItems.forEach(rx => next.delete(rx.id))
+        return next
+      })
+    } else {
+      setSelected(prev => {
+        const next = new Set(prev)
+        analyzedItems.forEach(rx => next.add(rx.id))
+        return next
+      })
+    }
+  }
 
   function toggleSelect(id: string) {
     setSelected(prev => {
@@ -75,10 +94,6 @@ export default function DashboardPage() {
     })
   }
 
-  function clearSelection() {
-    setSelected(new Set())
-  }
-
   function goCompare() {
     if (analyzedSelected.length >= 2) {
       router.push(`/compare?ids=${analyzedSelected.join(',')}`)
@@ -86,7 +101,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 has-bottom-nav">
       <Navbar />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
 
@@ -120,38 +135,70 @@ export default function DashboardPage() {
             iconColor="text-indigo-500" iconBg="bg-indigo-50" sub={`${failed} failed`} delay={0.15} />
         </div>
 
-        {/* Compare bar — appears when selections are made */}
+        {/* Compare bar */}
         {selected.size > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="flex items-center gap-3 bg-primary-600 text-white px-4 py-3 rounded-xl mb-4 shadow"
+            exit={{ opacity: 0, y: -10 }}
+            className="rounded-2xl mb-4 overflow-hidden border border-primary-200 shadow-md"
           >
-            <Columns2 size={15} />
-            <span className="text-sm font-medium flex-1">
-              {selected.size} selected
-              {analyzedSelected.length < 2 && selected.size > 0 && (
-                <span className="ml-2 text-primary-200 text-xs">
-                  (select {Math.max(0, 2 - analyzedSelected.length)} more analysed prescription{analyzedSelected.length === 1 ? '' : 's'} to compare)
-                </span>
-              )}
-            </span>
-            <button
-              onClick={goCompare}
-              disabled={analyzedSelected.length < 2}
-              className={cn(
-                'text-sm font-semibold px-4 py-1.5 rounded-lg transition',
-                analyzedSelected.length >= 2
-                  ? 'bg-white text-primary-600 hover:bg-primary-50'
-                  : 'bg-primary-500 text-primary-300 cursor-not-allowed'
-              )}
-            >
-              Compare Checklists
-            </button>
-            <button onClick={clearSelection} className="p-1 hover:bg-primary-500 rounded-lg transition">
-              <X size={14} />
-            </button>
+            <div className="bg-primary-600 px-4 py-2.5 flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Columns2 size={15} className="text-primary-200 flex-shrink-0" />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold text-white">
+                    {selected.size} prescription{selected.size !== 1 ? 's' : ''} selected
+                  </span>
+                  {analyzedSelected.length > 0 && analyzedSelected.length < selected.size && (
+                    <span className="text-xs text-primary-300">
+                      ({selected.size - analyzedSelected.length} not yet analysed — will be skipped)
+                    </span>
+                  )}
+                  {analyzedSelected.length === 0 && (
+                    <span className="text-xs text-primary-300">Select at least 2 analysed prescriptions to compare</span>
+                  )}
+                  {analyzedSelected.length === 1 && (
+                    <span className="text-xs text-primary-300">Select 1 more analysed prescription to compare</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={goCompare}
+                  disabled={analyzedSelected.length < 2}
+                  className={cn(
+                    'text-sm font-semibold px-4 py-1.5 rounded-xl transition',
+                    analyzedSelected.length >= 2
+                      ? 'bg-white text-primary-600 hover:bg-primary-50 shadow-sm'
+                      : 'bg-primary-500/60 text-primary-300 cursor-not-allowed'
+                  )}
+                >
+                  Compare {analyzedSelected.length >= 2 ? analyzedSelected.length : ''} Checklists
+                </button>
+                <button
+                  onClick={() => setSelected(new Set())}
+                  className="p-1.5 hover:bg-primary-500 rounded-lg transition"
+                  title="Clear selection"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            {analyzedSelected.length >= 2 && (
+              <div className="bg-primary-50 border-t border-primary-100 px-4 py-2 flex items-center gap-2 flex-wrap">
+                {analyzedSelected.map((id, i) => (
+                  <span key={id} className="inline-flex items-center gap-1.5 bg-white border border-primary-200 text-primary-700 text-xs font-medium px-2.5 py-1 rounded-full">
+                    <span className="w-4 h-4 rounded-full bg-primary-500 text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">{i + 1}</span>
+                    <span className="font-mono">{id.slice(0, 10)}…</span>
+                    <button onClick={() => toggleSelect(id)} className="text-primary-400 hover:text-red-500 transition ml-0.5">
+                      <X size={10} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -192,15 +239,26 @@ export default function DashboardPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/70">
+                  {/* Select-all checkbox */}
                   <th className="w-10 px-4 py-3">
-                    <span className="sr-only">Select</span>
+                    {analyzedItems.length > 0 && (
+                      <input
+                        type="checkbox"
+                        checked={allAnalyzedSelected}
+                        ref={el => {
+                          if (el) el.indeterminate = someAnalyzedSelected && !allAnalyzedSelected
+                        }}
+                        onChange={toggleSelectAll}
+                        title="Select all analysed"
+                        className="rounded border-slate-300 text-primary-500 focus:ring-primary-400 cursor-pointer"
+                      />
+                    )}
                   </th>
-                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">File</th>
-                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Status</th>
-                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Uploaded</th>
-                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Clarity</th>
-                  <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Result</th>
-                  <th className="px-4 py-3" />
+                  {['File', 'Status', 'Uploaded', 'Clarity', 'Result', ''].map(h => (
+                    <th key={h} className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -224,10 +282,7 @@ export default function DashboardPage() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: i * 0.03 }}
-                        className={cn(
-                          'hover:bg-slate-50/60 transition-colors',
-                          isSelected && 'bg-primary-50/40'
-                        )}
+                        className={cn('hover:bg-slate-50/60 transition-colors', isSelected && 'bg-primary-50/40')}
                       >
                         <td className="px-4 py-3.5">
                           {canSelect && (
@@ -295,7 +350,6 @@ export default function DashboardPage() {
             </table>
           </div>
 
-          {/* Pagination */}
           {total > 20 && (
             <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
               <p className="text-sm text-slate-400">
@@ -318,7 +372,6 @@ export default function DashboardPage() {
               <div key={i} className="card animate-pulse space-y-2 p-4">
                 <div className="h-3 bg-slate-100 rounded w-2/3" />
                 <div className="h-3 bg-slate-100 rounded w-1/2" />
-                <div className="h-3 bg-slate-100 rounded w-1/3" />
               </div>
             ))
           ) : filtered.length === 0 ? (
@@ -353,42 +406,33 @@ export default function DashboardPage() {
                       />
                     )}
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">
-                        {rx.original_filename || 'Untitled'}
-                      </p>
+                      <p className="text-sm font-semibold text-slate-800 truncate">{rx.original_filename || 'Untitled'}</p>
                       <p className="text-xs text-slate-400 font-mono mt-0.5">{rx.id.slice(0, 12)}…</p>
                     </div>
                   </div>
                   <StatusPill status={rx.status as PrescriptionStatus} />
                 </div>
-
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
                   <span>{formatDate(rx.created_at)}</span>
                   {rx.ocr_confidence != null && (
-                    <span>
-                      OCR: <span className={cn('font-semibold',
-                        rx.ocr_confidence >= 0.8 ? 'text-green-600' :
-                        rx.ocr_confidence >= 0.6 ? 'text-amber-600' : 'text-red-500'
-                      )}>{Math.round(rx.ocr_confidence * 100)}%</span>
-                    </span>
+                    <span>OCR: <span className={cn('font-semibold',
+                      rx.ocr_confidence >= 0.8 ? 'text-green-600' :
+                      rx.ocr_confidence >= 0.6 ? 'text-amber-600' : 'text-red-500'
+                    )}>{Math.round(rx.ocr_confidence * 100)}%</span></span>
                   )}
                 </div>
-
                 <div className="flex items-center justify-between">
                   <div>
                     {report ? (
                       <DiscrepancyBadge label={report.label as DiscrepancyLabel} size="sm" />
                     ) : rx.status === 'processing' ? (
                       <span className="text-xs text-indigo-500 animate-softpulse">Analysing…</span>
-                    ) : (
-                      <span className="text-xs text-slate-300">Pending</span>
-                    )}
+                    ) : <span className="text-xs text-slate-300">Pending</span>}
                   </div>
                   {rx.status === 'analyzed' && (
                     <Link
                       href={`/analysis/${rx.id}`}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-white
-                                 bg-primary-500 px-3 py-1.5 rounded-lg touch-manipulation"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-white bg-primary-500 px-3 py-1.5 rounded-lg touch-manipulation"
                     >
                       View Report <ChevronRight size={12} />
                     </Link>
@@ -398,18 +442,13 @@ export default function DashboardPage() {
             )
           })}
 
-          {/* Mobile: compare CTA */}
           {analyzedSelected.length >= 2 && (
-            <button
-              onClick={goCompare}
-              className="w-full btn-primary py-3 text-sm"
-            >
+            <button onClick={goCompare} className="w-full btn-primary py-3 text-sm">
               <Columns2 size={14} />
               Compare {analyzedSelected.length} Prescriptions
             </button>
           )}
 
-          {/* Mobile pagination */}
           {total > 20 && (
             <div className="flex gap-3 pt-2">
               <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1}

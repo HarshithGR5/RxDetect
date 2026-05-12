@@ -1,8 +1,8 @@
 'use client'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Upload, FileImage, File, CheckCircle2, X } from 'lucide-react'
+import { Upload, File, Camera, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -19,11 +19,10 @@ const ACCEPT = {
 
 export default function UploadZone({ onFile, loading }: Props) {
   const [selected, setSelected] = useState<File | null>(null)
-  const [preview, setPreview]   = useState<string | null>(null)
+  const [preview,  setPreview]  = useState<string | null>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
 
-  const onDrop = useCallback((accepted: File[]) => {
-    if (!accepted[0]) return
-    const f = accepted[0]
+  const handleFile = useCallback((f: File) => {
     setSelected(f)
     if (f.type.startsWith('image/')) {
       setPreview(URL.createObjectURL(f))
@@ -33,6 +32,15 @@ export default function UploadZone({ onFile, loading }: Props) {
     onFile(f)
   }, [onFile])
 
+  const onDrop = useCallback((accepted: File[]) => {
+    if (accepted[0]) handleFile(accepted[0])
+  }, [handleFile])
+
+  const onCameraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (f) handleFile(f)
+  }
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop, accept: ACCEPT, maxFiles: 1, maxSize: 20 * 1024 * 1024, disabled: loading,
   })
@@ -41,10 +49,11 @@ export default function UploadZone({ onFile, loading }: Props) {
     e.stopPropagation()
     setSelected(null)
     setPreview(null)
+    if (cameraRef.current) cameraRef.current.value = ''
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div
         {...getRootProps()}
         className={cn(
@@ -58,7 +67,8 @@ export default function UploadZone({ onFile, loading }: Props) {
         )}
       >
         <input {...getInputProps()} />
-        <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+
+        <div className="flex flex-col items-center justify-center py-10 sm:py-12 px-6 text-center">
           <AnimatePresence mode="wait">
             {selected ? (
               <motion.div
@@ -69,14 +79,17 @@ export default function UploadZone({ onFile, loading }: Props) {
                 className="flex flex-col items-center gap-3"
               >
                 {preview ? (
-                  <img src={preview} alt="Preview" className="w-28 h-28 object-cover rounded-xl shadow" />
+                  <img src={preview} alt="Preview"
+                    className="w-28 h-28 object-cover rounded-xl shadow border border-slate-100" />
                 ) : (
                   <div className="w-16 h-16 bg-primary-100 rounded-xl flex items-center justify-center">
                     <File size={28} className="text-primary-500" />
                   </div>
                 )}
                 <div>
-                  <p className="font-semibold text-primary-700">{selected.name}</p>
+                  <p className="font-semibold text-primary-700 break-all max-w-[220px] mx-auto">
+                    {selected.name}
+                  </p>
                   <p className="text-sm text-slate-400 mt-0.5">
                     {(selected.size / 1024).toFixed(0)} KB · {selected.type}
                   </p>
@@ -84,9 +97,10 @@ export default function UploadZone({ onFile, loading }: Props) {
                 {!loading && (
                   <button
                     onClick={clear}
-                    className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 mt-1"
+                    className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 mt-1
+                               min-h-[44px] px-3 touch-manipulation"
                   >
-                    <X size={12} /> Remove
+                    <X size={12} /> Remove file
                   </button>
                 )}
               </motion.div>
@@ -108,11 +122,12 @@ export default function UploadZone({ onFile, loading }: Props) {
                   <p className="font-semibold text-slate-700">
                     {isDragActive ? 'Drop to upload' : 'Drag & drop prescription'}
                   </p>
-                  <p className="text-sm text-slate-400 mt-1">or click to browse files</p>
+                  <p className="text-sm text-slate-400 mt-1">or tap to browse files</p>
                 </div>
-                <div className="flex gap-2 text-xs text-slate-400">
+                <div className="flex flex-wrap justify-center gap-2 text-xs text-slate-400">
                   {['JPG', 'PNG', 'PDF', 'WEBP'].map(f => (
-                    <span key={f} className="bg-white border border-slate-200 px-2 py-0.5 rounded">{f}</span>
+                    <span key={f}
+                      className="bg-white border border-slate-200 px-2 py-0.5 rounded">{f}</span>
                   ))}
                 </div>
                 <p className="text-xs text-slate-400">Max file size: 20 MB</p>
@@ -121,7 +136,6 @@ export default function UploadZone({ onFile, loading }: Props) {
           </AnimatePresence>
         </div>
 
-        {/* Loading overlay */}
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded-2xl">
             <div className="flex flex-col items-center gap-3">
@@ -131,6 +145,32 @@ export default function UploadZone({ onFile, loading }: Props) {
           </div>
         )}
       </div>
+
+      {/* Camera capture button — visible on mobile only, hidden on desktop */}
+      {!selected && !loading && (
+        <div className="sm:hidden">
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={onCameraChange}
+            disabled={loading}
+          />
+          <button
+            type="button"
+            onClick={() => cameraRef.current?.click()}
+            className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl
+                       border border-dashed border-teal-300 bg-teal-50/60 text-teal-700
+                       text-sm font-medium hover:bg-teal-50 transition touch-manipulation
+                       min-h-[44px]"
+          >
+            <Camera size={17} />
+            Take photo with camera
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -4,10 +4,12 @@ Robust drug normalization with:
 - Strong cleaning (preserves D3, B12 etc.)
 - Brand-column AND generic-column fuzzy matching
 - Combination drug handling (multi-word drug names)
+- GPT-4 fallback for unknown brand names (brand → generic conversion)
 - Safe fallbacks
 """
 
 import re
+import json
 import pandas as pd
 import structlog
 from functools import lru_cache
@@ -198,11 +200,58 @@ def clean_drug_name(name: str) -> str:
 
 
 # ---------------------------------------------------
+# GPT brand → generic fallback
+# Called when CSV + RxNorm both fail to identify the drug
+# ---------------------------------------------------
+
+def _gpt_brand_to_generic(brand_name: str) -> str | None:
+    """
+    Use GPT-4o to convert an unrecognised brand/trade name to its generic INN.
+    Returns the generic name string or None if GPT cannot identify it.
+    """
+    try:
+        from openai import OpenAI
+        from app.config import settings
+
+        openai_client = OpenAI(api_key=settings.openai_api_key)
+
+        prompt = (
+            f"You are a clinical pharmacist. Convert the drug brand/trade name below to its "
+            f"INN (international non-proprietary / generic) name.\n\n"
+            f"Brand name: {brand_name}\n\n"
+            f"Rules:\n"
+            f"- Return ONLY the generic name (INN), nothing else\n"
+            f"- If it is a combination product, list the components separated by ' + '\n"
+            f"- If you cannot identify this drug with confidence, return exactly: UNKNOWN\n"
+            f"- Do NOT include dosage, form, or units\n"
+        )
+
+        resp = openai_client.chat.completions.create(
+            model=settings.openai_reasoning_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=80,
+            temperature=0.0,
+        )
+
+        raw = resp.choices[0].message.content.strip()
+        if raw.upper() == "UNKNOWN" or not raw:
+            log.info("drug.gpt_brand_fallback_unknown", brand=brand_name)
+            return None
+
+        log.info("drug.gpt_brand_to_generic", brand=brand_name, generic=raw)
+        return raw.lower()
+
+    except Exception as e:
+        log.warning("drug.gpt_brand_fallback_error", brand=brand_name, error=str(e))
+        return None
+
+
+# ---------------------------------------------------
 # Normalize drug name
 # 1. Try brand column (fuzzy)
-# 2. Try generic column (fuzzy) — catches prescriptions
-#    written using generic names directly
-# 3. Fallback: use cleaned name as-is
+# 2. Try generic column (fuzzy)
+# 3. GPT brand → generic fallback
+# 4. Fallback: use cleaned name as-is
 # ---------------------------------------------------
 
 def normalize_drug_name(raw_name: str) -> dict:
@@ -303,11 +352,39 @@ def normalize_drug_name(raw_name: str) -> dict:
         }
 
     # ---------------------------------------------------
-    # Pass 3: Nothing matched — fall back to cleaned name
+    # Pass 3: GPT brand → generic fallback
+    # Only attempted when CSV lookup fails for both columns.
+    # This handles unfamiliar trade names, regional brands, etc.
+    # ---------------------------------------------------
+    gpt_generic = _gpt_brand_to_generic(raw_name)
+
+    if gpt_generic and gpt_generic != "unknown":
+        generics = split_combination_generics(gpt_generic)
+        log.info(
+            "drug.normalized_via_gpt_fallback",
+            input=raw_name,
+            cleaned=clean_name,
+            gpt_generic=gpt_generic,
+            components=generics,
+        )
+        return {
+            "found":            True,
+            "input":            raw_name,
+            "cleaned":          clean_name,
+            "normalized_brand": clean_name,
+            "generic":          generics,
+            "category":         "",
+            "confidence":       70,   # moderate confidence — GPT-inferred
+            "source":           "gpt_brand_fallback",
+            "is_combination":   len(generics) > 1,
+        }
+
+    # ---------------------------------------------------
+    # Pass 4: Nothing matched — fall back to cleaned name
     # split on "+" / combination splitter
     # ---------------------------------------------------
     log.warning(
-        "drug.not_found_in_csv",
+        "drug.not_found_in_csv_or_gpt",
         input=raw_name,
         cleaned=clean_name,
         best_brand_match=brand_match,

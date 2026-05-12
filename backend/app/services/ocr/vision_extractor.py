@@ -2,6 +2,7 @@
 vision_extractor.py
 Calls GPT-4o Vision to extract structured prescription fields from an image or PDF.
 Handles stamp/letterhead doctor info, therapy suggestions, and generates 27-param checklist.
+Post-processes drug form abbreviations to infer route when not explicitly stated.
 """
 
 import base64
@@ -16,6 +17,116 @@ from app.services.ocr.text_cleaner import clean_extracted_fields
 
 log = structlog.get_logger(__name__)
 client = OpenAI(api_key=settings.openai_api_key)
+
+
+# =========================================================
+# DRUG FORM → ROUTE INFERENCE
+# =========================================================
+
+# Maps common prescription abbreviations/form prefixes to their standard route
+FORM_ROUTE_MAP: dict[str, str] = {
+    # Oral solid
+    "tab":        "Oral",
+    "tablet":     "Oral",
+    "tabs":       "Oral",
+    "t.":         "Oral",
+    "cap":        "Oral",
+    "capsule":    "Oral",
+    "caps":       "Oral",
+    "sachet":     "Oral",
+    "powder":     "Oral",
+    # Oral liquid
+    "syp":        "Oral (Liquid)",
+    "syrup":      "Oral (Liquid)",
+    "susp":       "Oral (Liquid)",
+    "suspension": "Oral (Liquid)",
+    "soln":       "Oral (Liquid)",
+    "solution":   "Oral (Liquid)",
+    "elixir":     "Oral (Liquid)",
+    # Parenteral
+    "inj":        "Injection (Parenteral)",
+    "injection":  "Injection (Parenteral)",
+    "iv":         "Intravenous",
+    "im":         "Intramuscular",
+    "sc":         "Subcutaneous",
+    # Eye / ear
+    "gtt":        "Eye/Ear Drops",
+    "eye drops":  "Eye Drops",
+    "ear drops":  "Ear Drops",
+    "eye oint":   "Eye Ointment",
+    # Topical
+    "cream":      "Topical",
+    "oint":       "Topical",
+    "ointment":   "Topical",
+    "gel":        "Topical",
+    "lotion":     "Topical",
+    "patch":      "Transdermal",
+    # Inhalation
+    "inhaler":    "Inhalation",
+    "mdi":        "Inhalation",
+    "nebulizer":  "Inhalation",
+    "nebuliser":  "Inhalation",
+    # Nasal
+    "nasivion":   "Intranasal",       # oxymetazoline brand; always nasal
+    "otrivin":    "Intranasal",       # xylometazoline brand
+    "nasonex":    "Intranasal",
+    "avamys":     "Intranasal",
+    "flixonase":  "Intranasal",
+    "nasal spray":"Intranasal",
+    "nasal drop": "Intranasal",
+    "nasal drops":"Intranasal",
+    "nose drops": "Intranasal",
+    "spray":      "Nasal Spray",
+    "nasal":      "Intranasal",
+    # Rectal
+    "suppository":"Rectal",
+    "supp":       "Rectal",
+    "enema":      "Rectal",
+}
+
+# Regex to find leading form prefix in drug name
+_FORM_PREFIX_PATTERN = re.compile(
+    r"^\s*\b("
+    + "|".join(re.escape(k) for k in sorted(FORM_ROUTE_MAP, key=len, reverse=True))
+    + r")\b[\s\.]*",
+    re.IGNORECASE,
+)
+
+
+def _infer_route_from_name(drug_name: str) -> str | None:
+    """
+    Infer the administration route from the drug name prefix.
+    e.g. "Tab Amoxicillin 500mg" → "Oral"
+         "Inj Ceftriaxone 1g"   → "Injection (Parenteral)"
+         "Syp Paracetamol"      → "Oral (Liquid)"
+    Returns None if no recognisable prefix is found.
+    """
+    m = _FORM_PREFIX_PATTERN.match(drug_name or "")
+    if not m:
+        return None
+    prefix = m.group(1).lower().rstrip(".")
+    return FORM_ROUTE_MAP.get(prefix)
+
+
+def _postprocess_drug_routes(fields: dict) -> dict:
+    """
+    For each drug in the extracted fields, if `route` is null/empty but
+    the drug name has a recognisable form prefix (Tab, Inj, Syp, …),
+    fill in the inferred route so the rule engine and LLM have complete data.
+    """
+    drugs = fields.get("drugs") or []
+    for drug in drugs:
+        if not (drug.get("route") or "").strip():
+            inferred = _infer_route_from_name(drug.get("drug_name", ""))
+            if inferred:
+                drug["route"] = inferred
+                log.info(
+                    "vision_extractor.route_inferred",
+                    drug=drug.get("drug_name"),
+                    route=inferred,
+                )
+    fields["drugs"] = drugs
+    return fields
 
 
 # =========================================================
@@ -36,6 +147,40 @@ Prescription pads may present doctor information in MULTIPLE formats:
 
 You MUST scan the ENTIRE image — top, bottom, left, right, corners, margins — for prescriber details.
 If you see a stamp or letterhead with doctor information, extract it as VALID data even if it looks like a design element.
+
+## DRUG FORM ABBREVIATIONS — ROUTE INFERENCE
+
+Many prescriptions use shorthand before the drug name to indicate dosage form. Use these to infer the `route` field when it is not explicitly written:
+
+| Prefix / Abbreviation | Dosage Form       | Route                    |
+|-----------------------|-------------------|--------------------------|
+| Tab / Tablet / T      | Tablet            | Oral                     |
+| Cap / Capsule         | Capsule           | Oral                     |
+| Syp / Syrup           | Syrup             | Oral (Liquid)            |
+| Susp / Suspension     | Suspension        | Oral (Liquid)            |
+| Sachet                | Sachet/granules   | Oral                     |
+| Inj / Injection       | Injection         | Injection (Parenteral)   |
+| IV                    | Intravenous       | Intravenous              |
+| IM                    | Intramuscular     | Intramuscular            |
+| SC / S/C              | Subcutaneous      | Subcutaneous             |
+| GTT / Drops           | Drops             | Eye/Ear Drops            |
+| Cream / Oint          | Cream/Ointment    | Topical                  |
+| Gel / Lotion          | Gel/Lotion        | Topical                  |
+| Patch                 | Patch             | Transdermal              |
+| Inhaler / MDI         | Inhaler           | Inhalation               |
+| Spray                 | Nasal spray       | Nasal Spray              |
+| Supp                  | Suppository       | Rectal                   |
+
+If you see "Tab Amoxicillin 500mg BD 5 days", the route is "Oral" even if not written.
+If you see "Inj Ceftriaxone 1g IV OD", the route is "Intravenous".
+Always populate `route` when you can infer it — do NOT leave it null simply because it is not spelled out.
+
+## CLINIC / HOSPITAL ADDRESS
+
+Always look for a clinic or hospital address in the letterhead, stamp, or printed header. This may appear as:
+- A full postal address (e.g. "123 Medical Lane, City, PIN 400001")
+- Just a city/area name combined with clinic name
+Extract it as `clinic_address`. Extract phone, fax, or email as `contact_details`.
 
 ## FIELD EXTRACTION SCHEMA
 
@@ -87,16 +232,17 @@ Return ONLY a valid JSON object with ALL of these keys (use null for missing/ill
 ## FIELD RULES
 
 - overall_legibility_score: 0.0 (completely illegible) to 1.0 (perfectly clear)
-- illegible_fields: list only field names that are TRULY UNREADABLE (do NOT list fields that appear in stamps/letterheads)
+- illegible_fields: list ONLY field names that are TRULY UNREADABLE (scrawled/blurred beyond recognition). Do NOT list merely absent fields here.
 - doctor_qualification: extract degrees/specialisations (e.g. "MBBS, MD (Pharmacology)", "MBChB")
 - doctor_registration_no: any registration, license, or council number (GMC, NMC, HPCSA, etc.)
-- clinic_address: full address if visible in letterhead or stamp
+- clinic_address: full address if visible in letterhead or stamp (include city, PIN/postcode if visible)
 - contact_details: phone, fax, email of clinic/doctor if visible
 - patient_weight: weight if written (e.g. "68 kg", "70kg")
 - allergy_history: any allergy or NKDA/NKA notation
 - previous_medical_history: any past medical conditions, co-morbidities, or relevant history mentioned (e.g. "h/o diabetes", "known hypertensive", "prior MI", "CKD", "liver disease") — null if not mentioned
 - generic_name: the INN/generic if both generic and brand are written; null if only one name visible
 - brand_name: the proprietary/brand name if written; null if only generic used
+- route: ALWAYS populate when you can infer it from the form prefix (Tab→Oral, Inj→Injection, etc.)
 - therapy_suggestions: NON-DRUG recommendations such as:
   * Physiotherapy / physical therapy
   * Dietary changes (low salt, high fibre, diabetic diet, etc.)
@@ -110,8 +256,9 @@ Return ONLY a valid JSON object with ALL of these keys (use null for missing/ill
 - Do NOT guess values
 - Do NOT mark stamp/letterhead fields as illegible — they ARE readable
 - If a field appears in a stamp or letterhead, extract it as valid
-- Do NOT normalize drug names — extract EXACT text
-- If unsure about a specific field, set it to null and add to illegible_fields
+- Do NOT normalize drug names — extract EXACT text as written
+- Only add a field to illegible_fields if the handwriting/print is physically unreadable (garbled, smudged, torn)
+- Absent fields should be null, NOT added to illegible_fields
 - Extract therapy_suggestions even if written informally (e.g. "physio", "low salt diet", "refer physio")
 
 Return ONLY JSON. No markdown. No explanation.
@@ -181,36 +328,48 @@ CHECKLIST_PARAMETERS = [
 
 # =========================================================
 # PDF → IMAGE CONVERSION
+# Tries PyMuPDF first (pure Python, no system deps),
+# then pdf2image (requires poppler).
 # =========================================================
 
 def _pdf_to_images(file_path: str) -> list[bytes]:
     """
     Convert the first page of a PDF to a PNG image for GPT-4o Vision.
-    Tries pdf2image first, falls back to pypdf rendering if available.
+    Tries PyMuPDF first (no system dependencies), then pdf2image (requires poppler).
     """
-    try:
-        from pdf2image import convert_from_path
-        pages = convert_from_path(file_path, dpi=200, first_page=1, last_page=1)
-        if pages:
-            import io
-            buf = io.BytesIO()
-            pages[0].save(buf, format="PNG")
-            return [buf.getvalue()]
-    except ImportError:
-        log.warning("vision_extractor.pdf2image_not_available")
-
+    # ── Attempt 1: PyMuPDF (pip install pymupdf) ──────────────────────────────
     try:
         import fitz  # PyMuPDF
         doc = fitz.open(file_path)
         page = doc[0]
-        mat = fitz.Matrix(2.0, 2.0)  # 2x scale for clarity
+        mat = fitz.Matrix(2.0, 2.0)   # 2× scale for OCR clarity
         pix = page.get_pixmap(matrix=mat)
+        doc.close()
+        log.info("vision_extractor.pdf_converted_via_pymupdf")
         return [pix.tobytes("png")]
     except ImportError:
         log.warning("vision_extractor.pymupdf_not_available")
+    except Exception as e:
+        log.warning("vision_extractor.pymupdf_error", error=str(e))
+
+    # ── Attempt 2: pdf2image + poppler ────────────────────────────────────────
+    try:
+        from pdf2image import convert_from_path
+        import io
+        pages = convert_from_path(file_path, dpi=200, first_page=1, last_page=1)
+        if pages:
+            buf = io.BytesIO()
+            pages[0].save(buf, format="PNG")
+            log.info("vision_extractor.pdf_converted_via_pdf2image")
+            return [buf.getvalue()]
+    except ImportError:
+        log.warning("vision_extractor.pdf2image_not_available")
+    except Exception as e:
+        log.warning("vision_extractor.pdf2image_error", error=str(e))
 
     raise RuntimeError(
-        "Cannot render PDF: install pdf2image (with poppler) or PyMuPDF (pip install pymupdf)"
+        "Cannot render PDF: install PyMuPDF (pip install pymupdf) "
+        "or pdf2image with poppler (pip install pdf2image && apt install poppler-utils)"
     )
 
 
@@ -348,6 +507,9 @@ def extract_prescription_fields(file_path: str) -> dict:
         return _error("JSON parse failed", raw_text)
 
     fields = clean_extracted_fields(fields)
+
+    # ── Post-process: infer route from drug form prefix ──────────────────────
+    fields = _postprocess_drug_routes(fields)
 
     ocr_confidence = float(fields.get("overall_legibility_score") or 0.0)
 

@@ -65,14 +65,14 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 has-bottom-nav">
       <Navbar />
-      <main className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
+      <main className="max-w-2xl mx-auto px-4 py-6 sm:py-12">
 
-        <div className="mb-6 sm:mb-8">
+        <div className="mb-5 sm:mb-8">
           <h1 className="text-xl sm:text-2xl font-bold text-primary-500">Upload Prescription</h1>
           <p className="text-slate-400 text-sm mt-1">
-            Upload an image or PDF to begin AI-powered clinical validation
+            Upload an image or PDF — or use your camera — to begin AI-powered clinical validation
           </p>
         </div>
 
@@ -101,8 +101,8 @@ export default function UploadPage() {
 
               <div className="space-y-2.5">
                 {STEPS.map((step, i) => {
-                  const done    = i <= currentStep
-                  const active  = i === currentStep + 1 && state === 'polling'
+                  const done   = i <= currentStep
+                  const active = i === currentStep + 1 && state === 'polling'
 
                   return (
                     <motion.div
@@ -186,22 +186,18 @@ export default function UploadPage() {
         <div className="p-4 bg-primary-50 border border-primary-100 rounded-2xl">
           <p className="text-xs font-semibold text-primary-600 mb-2 uppercase tracking-wide">Accepted formats</p>
           <ul className="space-y-1.5 text-xs text-primary-500">
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary-400 flex-shrink-0" />
-              JPEG / PNG / WEBP prescription images
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary-400 flex-shrink-0" />
-              PDF prescriptions (scanned or digital)
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary-400 flex-shrink-0" />
-              Maximum file size: 20 MB
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary-400 flex-shrink-0" />
-              Best results with clear, well-lit images
-            </li>
+            {[
+              'JPEG / PNG / WEBP prescription images',
+              'PDF prescriptions (scanned or digital)',
+              'Camera capture directly from your phone',
+              'Maximum file size: 20 MB',
+              'Best results with clear, well-lit images',
+            ].map(txt => (
+              <li key={txt} className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary-400 flex-shrink-0" />
+                {txt}
+              </li>
+            ))}
           </ul>
         </div>
 

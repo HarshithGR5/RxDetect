@@ -11,9 +11,26 @@
   html {
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
+    /* Prevent iOS font-size zoom on input focus */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
-  body { @apply bg-slate-50 text-slate-800 antialiased; }
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased;
+    /* Momentum scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+  }
   h1,h2,h3,h4 { @apply font-semibold tracking-tight; }
+
+  /* Prevent iOS zoom on input focus — inputs must be >= 16px */
+  input, select, textarea {
+    font-size: 16px;
+  }
+  @media (min-width: 640px) {
+    input, select, textarea {
+      font-size: 0.875rem; /* 14px on sm+ */
+    }
+  }
 }
 
 @layer components {
@@ -24,24 +41,29 @@
     @apply inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600
            text-white font-medium px-4 sm:px-5 py-2.5 rounded-xl transition-all duration-150
            disabled:opacity-50 disabled:cursor-not-allowed shadow-sm
-           active:scale-95 touch-manipulation;
+           active:scale-95 touch-manipulation
+           min-h-[44px]; /* iOS 44pt minimum tap target */
   }
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50
            text-primary-500 font-medium px-4 sm:px-5 py-2.5 rounded-xl border border-primary-200
            transition-all duration-150 disabled:opacity-50 shadow-sm
-           active:scale-95 touch-manipulation;
+           active:scale-95 touch-manipulation
+           min-h-[44px];
   }
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 text-slate-600 hover:text-primary-500
            hover:bg-slate-100 font-medium px-3 sm:px-4 py-2 rounded-xl transition-all duration-150
-           active:scale-95 touch-manipulation;
+           active:scale-95 touch-manipulation
+           min-h-[44px];
   }
   .input {
-    @apply w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white
+    @apply w-full px-4 py-3 rounded-xl border border-slate-200 bg-white
            text-slate-800 placeholder-slate-400
            focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400
-           transition-all duration-150 text-base sm:text-sm;
+           transition-all duration-150;
+    /* font-size handled in @layer base to prevent iOS zoom */
+    min-height: 44px;
   }
   .label { @apply block text-sm font-medium text-slate-700 mb-1.5; }
   .section-title { @apply text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3; }
@@ -65,4 +87,16 @@
 /* Safe-area padding for notched phones */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Bottom nav safe-area helper */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+/* Page bottom padding when bottom nav is visible */
+@media (max-width: 767px) {
+  .has-bottom-nav {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
 }

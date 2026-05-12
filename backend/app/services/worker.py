@@ -1,6 +1,8 @@
 """
 worker.py
 Celery application and main async pipeline — with checklist support.
+Input image/PDF is deleted from local storage after OCR extraction
+to avoid accumulating uploaded files on disk.
 """
 
 from celery import Celery
@@ -24,6 +26,23 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
 )
+
+
+def _discard_input_file(local_path: str | None) -> None:
+    """
+    Delete the uploaded prescription image/PDF after OCR is complete.
+    Silently ignores missing files or permission errors — analysis must
+    not fail due to cleanup failures.
+    """
+    if not local_path:
+        return
+    try:
+        import os
+        if os.path.exists(local_path):
+            os.remove(local_path)
+            log.info("worker.input_file_discarded", path=local_path)
+    except Exception as e:
+        log.warning("worker.input_file_discard_failed", path=local_path, error=str(e))
 
 
 @celery_app.task(bind=True, name="tasks.run_analysis", max_retries=2)
@@ -51,21 +70,29 @@ def run_analysis_task(self, prescription_id: str):
 
         _safe_update_status(db, rx, PrescriptionStatus.processing)
 
+        local_path = rx.local_path   # keep reference before potential nulling
+
         # -------------------------------------------------
         # 2. OCR  (includes checklist generation as second GPT call)
         # -------------------------------------------------
         from app.services.ocr.vision_extractor import extract_prescription_fields
 
-        ocr = extract_prescription_fields(rx.local_path)
+        ocr = extract_prescription_fields(local_path)
 
         if ocr.get("error") or not ocr.get("extracted_fields"):
             _safe_update_status(db, rx, PrescriptionStatus.failed)
             return {"status": "failed", "error": ocr.get("error")}
 
-        raw_fields     = ocr["extracted_fields"]
-        raw_text       = ocr["raw_text"]
-        raw_conf       = ocr["ocr_confidence"]
+        raw_fields      = ocr["extracted_fields"]
+        raw_text        = ocr["raw_text"]
+        raw_conf        = ocr["ocr_confidence"]
         checklist_items = ocr.get("checklist_items", [])
+
+        # -------------------------------------------------
+        # 2b. DISCARD INPUT FILE — no longer needed after OCR
+        # -------------------------------------------------
+        _discard_input_file(local_path)
+        rx.local_path = None   # clear the reference in DB
 
         # -------------------------------------------------
         # 3. CLEAN
@@ -85,11 +112,11 @@ def run_analysis_task(self, prescription_id: str):
         ocr_conf    = compute_ocr_confidence(cleaned_fields, raw_conf)
         completeness = compute_completeness_score(cleaned_fields)
 
-        rx.raw_ocr_text      = raw_text
-        rx.extracted_fields  = cleaned_fields
-        rx.ocr_confidence    = ocr_conf
+        rx.raw_ocr_text       = raw_text
+        rx.extracted_fields   = cleaned_fields
+        rx.ocr_confidence     = ocr_conf
         rx.completeness_score = completeness["completeness_score"]
-        rx.missing_fields    = completeness["missing_fields"]
+        rx.missing_fields     = completeness["missing_fields"]
 
         _safe_update_status(db, rx, PrescriptionStatus.ocr_done)
 
@@ -128,11 +155,11 @@ def run_analysis_task(self, prescription_id: str):
         from app.services.llm.reasoning_chain import run_reasoning_chain
 
         llm_result = run_reasoning_chain(
-            extracted_fields=cleaned_fields,
-            validation_result=validation_result,
-            rule_findings=rule_result.findings,
-            retrieved_context=retrieved_context,
-            retrieved_chunks=retrieved_chunks,
+            extracted_fields  = cleaned_fields,
+            validation_result = validation_result,
+            rule_findings     = rule_result.findings,
+            retrieved_context = retrieved_context,
+            retrieved_chunks  = retrieved_chunks,
         )
 
         # -------------------------------------------------
@@ -148,19 +175,19 @@ def run_analysis_task(self, prescription_id: str):
         from app.services.aggregator import aggregate_results
 
         final = aggregate_results(
-            rule_result=rule_result,
-            llm_result=llm_result,
-            ml_result=ml_result,
-            retrieved_chunks=retrieved_chunks,
-            validation_result=validation_result,
+            rule_result       = rule_result,
+            llm_result        = llm_result,
+            ml_result         = ml_result,
+            retrieved_chunks  = retrieved_chunks,
+            validation_result = validation_result,
         )
 
         log.info(
             "worker.final_result",
-            label=final.label,
-            confidence=final.confidence,
-            flags=len(final.flagged_fields),
-            checklist_items=len(checklist_items),
+            label      = final.label,
+            confidence = final.confidence,
+            flags      = len(final.flagged_fields),
+            checklist_items = len(checklist_items),
         )
 
         # -------------------------------------------------
@@ -185,19 +212,19 @@ def run_analysis_task(self, prescription_id: str):
 
         if existing:
             log.info("worker.updating_existing_report", prescription_id=rx.id)
-            existing.label          = label_enum.value
-            existing.confidence     = final.confidence
+            existing.label           = label_enum.value
+            existing.confidence      = final.confidence
             existing.rules_triggered = final.rules_triggered
-            existing.rule_label     = final.rule_label
-            existing.llm_label      = final.llm_label
-            existing.llm_confidence = final.llm_confidence
-            existing.llm_reason     = final.llm_reason
+            existing.rule_label      = final.rule_label
+            existing.llm_label       = final.llm_label
+            existing.llm_confidence  = final.llm_confidence
+            existing.llm_reason      = final.llm_reason
             existing.evidence_sources = final.evidence_sources
-            existing.ml_label       = final.ml_label
-            existing.ml_confidence  = final.ml_confidence
-            existing.ml_features    = final.ml_features
-            existing.consensus      = final.consensus
-            existing.checklist_items = checklist_items   # ← 27-param checklist
+            existing.ml_label        = final.ml_label
+            existing.ml_confidence   = final.ml_confidence
+            existing.ml_features     = final.ml_features
+            existing.consensus       = final.consensus
+            existing.checklist_items = checklist_items
 
         else:
             log.info("worker.creating_new_report", prescription_id=rx.id)
@@ -215,7 +242,7 @@ def run_analysis_task(self, prescription_id: str):
                 ml_confidence    = final.ml_confidence,
                 ml_features      = final.ml_features,
                 consensus        = final.consensus,
-                checklist_items  = checklist_items,      # ← 27-param checklist
+                checklist_items  = checklist_items,
             )
             db.add(report)
 

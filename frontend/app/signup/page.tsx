@@ -42,7 +42,8 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary-50/30
-                    flex items-center justify-center px-4 py-10">
+                    flex items-start sm:items-center justify-center px-4 py-8 sm:py-10"
+         style={{ paddingTop: 'max(2rem, env(safe-area-inset-top, 2rem))' }}>
       <div className="w-full max-w-md">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
