@@ -14,12 +14,14 @@ class Settings(BaseSettings):
     debug: bool = True
 
     # Database
-    postgres_user: str
-    postgres_password: str
-    postgres_db: str
-    postgres_host: str
-    postgres_port: int
+    postgres_user: Optional[str] = None
+    postgres_password: Optional[str] = None
+    postgres_db: Optional[str] = None
+    postgres_host: Optional[str] = None
+    postgres_port: Optional[int] = None
+
     database_url: PostgresDsn
+    async_database_url: str
 
     # JWT
     jwt_secret_key: str = "super_secret_key_change_in_production"
@@ -28,13 +30,14 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
 
     # Redis
-    redis_host: str = "localhost"
-    redis_port: int = 6379
-    redis_db: int = 0
+    redis_url: str = "redis://localhost:6379/0"
+
+    celery_broker_url: str = redis_url
+    celery_result_backend: str = redis_url
 
     # Celery
-    celery_broker_url: str = f"redis://{redis_host}:{redis_port}/{redis_db}"
-    celery_result_backend: str = f"redis://{redis_host}:{redis_port}/{redis_db}"
+    #celery_broker_url: str = f"redis://{redis_host}:{redis_port}/{redis_db}"
+    #celery_result_backend: str = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
     # OpenAI / LLM
     openai_api_key: Optional[str] = None
