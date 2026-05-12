@@ -2,6 +2,17 @@
 prescriptions.py — API v1
 Handles upload, retrieval, analysis triggering, status polling,
 result fetching (including checklist), and pharmacist feedback.
+
+Storage behaviour
+-----------------
+On upload the file is always written to local disk first (so the Celery
+worker can read it).  If Supabase Storage is configured the file is also
+uploaded there immediately, giving persistent storage that survives the
+local-file cleanup that happens after OCR.
+
+  local-only  : file lives in `uploads/` until OCR is done, then deleted.
+  + Supabase  : file additionally stored in Supabase "prescriptions" bucket;
+                local copy still deleted after OCR.
 """
 import shutil
 import uuid
@@ -9,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -22,7 +34,9 @@ from app.models import (
     PrescriptionStatus,
     User,
 )
+from app.utils.storage import storage, PRESCRIPTION_BUCKET
 
+log = structlog.get_logger(__name__)
 router = APIRouter()
 
 ALLOWED_CONTENT_TYPES = {
@@ -62,7 +76,6 @@ def _get_prescription_or_404(db: Session, prescription_id: str, user: User) -> P
     if not rx:
         raise HTTPException(status_code=404, detail="Prescription not found")
 
-    # Viewers and pharmacists can only see their own prescriptions
     if user.role not in ("admin",) and rx.uploaded_by != user.id:
         raise HTTPException(status_code=403, detail="Access denied to this prescription")
 
@@ -78,7 +91,11 @@ async def upload_prescription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a prescription image or PDF. Requires pharmacist or admin role."""
+    """Upload a prescription image or PDF. Requires pharmacist or admin role.
+
+    The file is saved locally for the OCR worker, and simultaneously uploaded
+    to Supabase Storage (if configured) for durable persistence.
+    """
     _require_role(current_user, "pharmacist", "admin")
 
     if file.content_type not in ALLOWED_CONTENT_TYPES:
@@ -92,6 +109,7 @@ async def upload_prescription(
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
 
+    # ── 1. Save to local disk (worker needs this) ─────────────────────────────
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
@@ -107,18 +125,47 @@ async def upload_prescription(
     finally:
         file.file.close()
 
+    # ── 2. Upload to storage backend (Supabase or local mirror) ──────────────
+    storage_key     = None
+    storage_backend = None
+
+    try:
+        key = f"{PRESCRIPTION_BUCKET}/{file_name}"
+        storage.upload_file(str(file_path), key, content_type=file.content_type or "application/octet-stream")
+        storage_key     = key
+        storage_backend = storage.name
+        log.info(
+            "prescriptions.stored",
+            backend=storage_backend,
+            key=storage_key,
+            filename=file.filename,
+        )
+    except Exception as exc:
+        # Non-fatal: the local file still exists so OCR can proceed.
+        # Log the failure but don't abort the upload.
+        log.warning(
+            "prescriptions.storage_upload_failed",
+            backend=storage.name,
+            error=str(exc),
+            filename=file.filename,
+        )
+
+    # ── 3. Persist to DB ──────────────────────────────────────────────────────
     rx = Prescription(
-        uploaded_by=current_user.id,
-        patient_id=patient_id,
-        local_path=str(file_path),
-        input_type=file.content_type,
-        original_filename=file.filename,
-        status=PrescriptionStatus.uploaded,
+        uploaded_by     = current_user.id,
+        patient_id      = patient_id,
+        local_path      = str(file_path),
+        storage_key     = storage_key,
+        storage_backend = storage_backend,
+        input_type      = file.content_type,
+        original_filename = file.filename,
+        status          = PrescriptionStatus.uploaded,
     )
     db.add(rx)
     db.commit()
     db.refresh(rx)
 
+    # ── 4. Enqueue analysis ───────────────────────────────────────────────────
     from app.services.worker import run_analysis_task
     task = run_analysis_task.delay(str(rx.id))
     rx.celery_job_id = task.id
@@ -128,6 +175,7 @@ async def upload_prescription(
         "prescription_id": str(rx.id),
         "status":          rx.status,
         "celery_job_id":   task.id,
+        "storage_backend": storage_backend or "local",
         "message":         "Upload successful. Analysis has been started.",
     }
 
@@ -189,6 +237,7 @@ def get_prescription(
         "extracted_fields":       rx.extracted_fields,
         "drug_validation_result": rx.drug_validation_result,
         "celery_job_id":          rx.celery_job_id,
+        "storage_backend":        rx.storage_backend,
         "created_at":             rx.created_at.isoformat(),
         "updated_at":             rx.updated_at.isoformat(),
     }
@@ -266,6 +315,8 @@ def delete_prescription(
     - Admins can delete any prescription.
     - Pharmacists can delete only their own prescriptions.
     - Viewers cannot delete.
+
+    If the prescription has a Supabase storage_key, the remote file is also deleted.
     """
     _require_role(current_user, "pharmacist", "admin")
     rx = _get_prescription_or_404(db, prescription_id, current_user)
@@ -275,6 +326,16 @@ def delete_prescription(
     if rx.report:
         db.delete(rx.report)
         db.flush()
+
+    # Delete from remote storage if present
+    if rx.storage_key and rx.storage_backend == "supabase":
+        try:
+            storage.delete(rx.storage_key)
+        except Exception as exc:
+            log.warning(
+                "prescriptions.remote_delete_failed",
+                key=rx.storage_key, error=str(exc),
+            )
 
     rx.deleted_at = datetime.utcnow()
     db.commit()
@@ -344,7 +405,6 @@ def get_analysis_result(
         "prescription_id": prescription_id,
         "status":          "complete",
         "extracted_fields": rx.extracted_fields,
-        # checklist_items at root so the frontend can access it directly
         "checklist_items": report.checklist_items or [],
         "discrepancy": {
             "label":          report.label,

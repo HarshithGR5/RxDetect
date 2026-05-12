@@ -25,8 +25,11 @@ redis==5.0.4
 celery==5.4.0                    # async job queue
 flower==2.0.1                    # Celery monitoring (optional)
 
-# --- AWS ---
-# boto3==1.34.114                  # S3 image storage (uncomment if using S3)
+# --- Storage ---
+# Supabase Storage is accessed via the REST API using `requests` (no extra package needed).
+# Set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY env vars to enable it.
+# AWS S3 is the alternative — uncomment boto3 if using S3 instead.
+boto3==1.34.114                   # AWS S3 storage (also used as Supabase S3-compat fallback)
 botocore==1.34.114
 
 # --- OpenAI / LLM ---
