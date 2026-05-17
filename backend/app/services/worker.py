@@ -1,9 +1,25 @@
 """
 worker.py
 Celery application and main async pipeline — with checklist support.
-Input image/PDF is deleted from local storage after OCR extraction
-to avoid accumulating uploaded files on disk.
+
+Storage behaviour
+-----------------
+On upload, the file is always saved to local disk first (so the Celery
+worker can read it for OCR).  If Supabase Storage is configured, the file
+is also uploaded there for durable persistence.
+
+After OCR is complete the local copy is deleted. If the local copy is
+missing at the time the worker runs (e.g. on a retry after a server restart)
+and a Supabase storage_key is present, the file is automatically downloaded
+from Supabase to a temp path before OCR proceeds.
+
+Storage selection (automatic — no code change needed):
+  Local only  : leave SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY unset
+  + Supabase  : set both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
 """
+
+import os
+import tempfile
 
 from celery import Celery
 import structlog
@@ -37,12 +53,75 @@ def _discard_input_file(local_path: str | None) -> None:
     if not local_path:
         return
     try:
-        import os
         if os.path.exists(local_path):
             os.remove(local_path)
             log.info("worker.input_file_discarded", path=local_path)
     except Exception as e:
         log.warning("worker.input_file_discard_failed", path=local_path, error=str(e))
+
+
+def _ensure_local_file(local_path: str | None, storage_key: str | None, storage_backend: str | None) -> str | None:
+    """
+    Ensure the input file exists on local disk before OCR.
+
+    Priority:
+      1. local_path exists on disk → return it as-is (normal path).
+      2. local_path missing but storage_key set (Supabase) → download to
+         a temp file and return that path.
+      3. Neither → return None (OCR will fail gracefully).
+
+    The returned path is the actual file path to pass to the OCR extractor.
+    If we downloaded from Supabase the caller is responsible for deleting
+    the temp file after use.
+    """
+    if local_path and os.path.exists(local_path):
+        return local_path
+
+    if storage_key and storage_backend == "supabase":
+        log.info(
+            "worker.local_file_missing_fetching_from_supabase",
+            local_path=local_path,
+            storage_key=storage_key,
+        )
+        try:
+            from app.utils.storage import storage
+            signed_url = storage.get_url(storage_key, expires_in=300)
+            if not signed_url:
+                log.error("worker.supabase_signed_url_empty", storage_key=storage_key)
+                return None
+
+            import requests as req_lib
+            resp = req_lib.get(signed_url, timeout=60)
+            resp.raise_for_status()
+
+            # Preserve the file extension so OCR / pdf2image works correctly
+            ext = os.path.splitext(storage_key)[-1] or ".jpg"
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+            tmp.write(resp.content)
+            tmp.close()
+
+            log.info(
+                "worker.supabase_file_downloaded",
+                storage_key=storage_key,
+                tmp_path=tmp.name,
+                size=len(resp.content),
+            )
+            return tmp.name
+
+        except Exception as exc:
+            log.error(
+                "worker.supabase_download_failed",
+                storage_key=storage_key,
+                error=str(exc),
+            )
+            return None
+
+    log.warning(
+        "worker.no_input_file_available",
+        local_path=local_path,
+        storage_key=storage_key,
+    )
+    return None
 
 
 @celery_app.task(bind=True, name="tasks.run_analysis", max_retries=2)
@@ -53,6 +132,7 @@ def run_analysis_task(self, prescription_id: str):
     from sqlalchemy.exc import IntegrityError
 
     db = SessionLocal()
+    tmp_file_to_cleanup: str | None = None
 
     try:
         # -------------------------------------------------
@@ -70,14 +150,32 @@ def run_analysis_task(self, prescription_id: str):
 
         _safe_update_status(db, rx, PrescriptionStatus.processing)
 
-        local_path = rx.local_path   # keep reference before potential nulling
+        # -------------------------------------------------
+        # 2. RESOLVE INPUT FILE
+        # Prefer local disk; fall back to Supabase download if local is missing.
+        # -------------------------------------------------
+        resolved_path = _ensure_local_file(rx.local_path, rx.storage_key, rx.storage_backend)
+
+        if not resolved_path:
+            log.error(
+                "worker.no_input_file",
+                prescription_id=prescription_id,
+                local_path=rx.local_path,
+                storage_key=rx.storage_key,
+            )
+            _safe_update_status(db, rx, PrescriptionStatus.failed)
+            return {"status": "failed", "error": "Input file not found locally or in remote storage"}
+
+        # Track if we created a temp download (so we can clean it up later)
+        if resolved_path != rx.local_path:
+            tmp_file_to_cleanup = resolved_path
 
         # -------------------------------------------------
-        # 2. OCR  (includes checklist generation as second GPT call)
+        # 3. OCR  (includes checklist generation as second GPT call)
         # -------------------------------------------------
         from app.services.ocr.vision_extractor import extract_prescription_fields
 
-        ocr = extract_prescription_fields(local_path)
+        ocr = extract_prescription_fields(resolved_path)
 
         if ocr.get("error") or not ocr.get("extracted_fields"):
             _safe_update_status(db, rx, PrescriptionStatus.failed)
@@ -89,20 +187,26 @@ def run_analysis_task(self, prescription_id: str):
         checklist_items = ocr.get("checklist_items", [])
 
         # -------------------------------------------------
-        # 2b. DISCARD INPUT FILE — no longer needed after OCR
+        # 4. DISCARD INPUT FILE — no longer needed after OCR
         # -------------------------------------------------
-        _discard_input_file(local_path)
-        rx.local_path = None   # clear the reference in DB
+        # Always discard the original local path (if it still exists)
+        _discard_input_file(rx.local_path)
+        rx.local_path = None
+
+        # Also discard any temp file we downloaded from Supabase
+        if tmp_file_to_cleanup:
+            _discard_input_file(tmp_file_to_cleanup)
+            tmp_file_to_cleanup = None
 
         # -------------------------------------------------
-        # 3. CLEAN
+        # 5. CLEAN
         # -------------------------------------------------
         from app.services.ocr.text_cleaner import clean_extracted_fields
 
         cleaned_fields = clean_extracted_fields(raw_fields)
 
         # -------------------------------------------------
-        # 4. CONFIDENCE
+        # 6. CONFIDENCE
         # -------------------------------------------------
         from app.services.ocr.confidence import (
             compute_ocr_confidence,
@@ -121,7 +225,7 @@ def run_analysis_task(self, prescription_id: str):
         _safe_update_status(db, rx, PrescriptionStatus.ocr_done)
 
         # -------------------------------------------------
-        # 5. VALIDATION
+        # 7. VALIDATION
         # -------------------------------------------------
         from app.services.validation.drug_validator import validate_prescription_drugs
 
@@ -133,14 +237,14 @@ def run_analysis_task(self, prescription_id: str):
         _safe_update_status(db, rx, PrescriptionStatus.validated)
 
         # -------------------------------------------------
-        # 6. RULE ENGINE
+        # 8. RULE ENGINE
         # -------------------------------------------------
         from app.services.rules.engine import run_all_rules
 
         rule_result = run_all_rules(cleaned_fields, ocr_conf, validation_result)
 
         # -------------------------------------------------
-        # 7. RAG
+        # 9. RAG
         # -------------------------------------------------
         from app.services.rag.retriever import retrieve_context, build_prescription_query
 
@@ -150,7 +254,7 @@ def run_analysis_task(self, prescription_id: str):
         retrieved_context, retrieved_chunks = retrieve_context(query, top_k=5)
 
         # -------------------------------------------------
-        # 8. LLM
+        # 10. LLM
         # -------------------------------------------------
         from app.services.llm.reasoning_chain import run_reasoning_chain
 
@@ -163,14 +267,14 @@ def run_analysis_task(self, prescription_id: str):
         )
 
         # -------------------------------------------------
-        # 9. ML
+        # 11. ML
         # -------------------------------------------------
         from app.services.ml.predictor import predict
 
         ml_result = predict(cleaned_fields, validation_result, ocr_conf)
 
         # -------------------------------------------------
-        # 10. AGGREGATE
+        # 12. AGGREGATE
         # -------------------------------------------------
         from app.services.aggregator import aggregate_results
 
@@ -191,7 +295,7 @@ def run_analysis_task(self, prescription_id: str):
         )
 
         # -------------------------------------------------
-        # 11. UPSERT REPORT
+        # 13. UPSERT REPORT
         # -------------------------------------------------
         from app.models.discrepancy_report import DiscrepancyLabel
 
@@ -268,6 +372,9 @@ def run_analysis_task(self, prescription_id: str):
         raise self.retry(exc=e, countdown=10)
 
     finally:
+        # Clean up any temp download we may have created
+        if tmp_file_to_cleanup:
+            _discard_input_file(tmp_file_to_cleanup)
         db.close()
 
 

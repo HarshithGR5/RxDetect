@@ -34,8 +34,8 @@ backend/alembic/__pycache__/
 
 # ── FAISS index (large binary files — rebuild locally with ingest script) ──────
 # Comment these out if you WANT to commit a pre-built index for teammates.
-data/faiss_index.faiss
-data/faiss_metadata.json
+#data/faiss_index.faiss
+#data/faiss_metadata.json
 
 # ── Uploaded files & generated reports ───────────────────────────────────────
 uploads/

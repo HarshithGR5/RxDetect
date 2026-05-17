@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Upload, RefreshCw, FileText, CheckCircle2,
   AlertTriangle, Clock, ChevronRight,
-  Search, Filter, Columns2, X, Trash2, AlertCircle
+  Search, Filter, Columns2, X, Trash2, AlertCircle, PieChart
 } from 'lucide-react'
 import Navbar from '@/components/Navbar'
 import StatsCard from '@/components/StatsCard'
@@ -26,6 +26,16 @@ const STATUS_OPTS: { value: string; label: string }[] = [
   { value: 'analyzed',   label: 'Analysed' },
   { value: 'failed',     label: 'Failed' },
 ]
+
+const DISC_LABELS: DiscrepancyLabel[] = ['No Discrepancy', 'Omission', 'Commission', 'Inconsistency', 'Illegibility']
+
+const BAR_COLORS: Record<DiscrepancyLabel, string> = {
+  'No Discrepancy': 'bg-emerald-500',
+  'Omission':       'bg-amber-400',
+  'Commission':     'bg-orange-400',
+  'Inconsistency':  'bg-purple-400',
+  'Illegibility':   'bg-red-400',
+}
 
 interface DeleteModalProps {
   count: number
@@ -83,6 +93,90 @@ function DeleteModal({ count, onConfirm, onCancel, loading }: DeleteModalProps) 
         </div>
       </motion.div>
     </div>
+  )
+}
+
+interface DiscrepancyBreakdownProps {
+  reports: ReportListItem[]
+}
+
+function DiscrepancyBreakdown({ reports }: DiscrepancyBreakdownProps) {
+  if (reports.length === 0) return null
+
+  const counts = DISC_LABELS.reduce((acc, label) => {
+    acc[label] = reports.filter(r => r.label === label).length
+    return acc
+  }, {} as Record<DiscrepancyLabel, number>)
+
+  const total = reports.length
+  const flagged = total - (counts['No Discrepancy'] || 0)
+  const flaggedPct = total ? Math.round(flagged / total * 100) : 0
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 }}
+      className="bg-slate-900/60 backdrop-blur-xl border border-white/8 rounded-2xl p-4 sm:p-5 mb-6 sm:mb-8"
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <PieChart size={15} className="text-teal-400" />
+          <h2 className="text-sm font-semibold text-white">Discrepancy Breakdown</h2>
+          <span className="text-xs text-slate-500 hidden sm:inline">
+            — across {total} analysed prescription{total !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div className="text-right">
+          <span className={cn('text-sm font-bold', flaggedPct > 50 ? 'text-amber-400' : 'text-emerald-400')}>
+            {flaggedPct}%
+          </span>
+          <span className="text-xs text-slate-500 ml-1">flagged</span>
+        </div>
+      </div>
+
+      {/* Stacked percentage bar */}
+      <div className="flex h-2.5 rounded-full overflow-hidden mb-5 gap-px">
+        {DISC_LABELS.map(label => {
+          const pct = total ? (counts[label] / total) * 100 : 0
+          if (pct === 0) return null
+          return (
+            <motion.div
+              key={label}
+              initial={{ width: 0 }}
+              animate={{ width: `${pct}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
+              className={cn('h-full', BAR_COLORS[label])}
+              title={`${label}: ${Math.round(pct)}%`}
+            />
+          )
+        })}
+      </div>
+
+      {/* Per-label rows */}
+      <div className="space-y-2.5">
+        {DISC_LABELS.map(label => {
+          const count = counts[label] || 0
+          const pct   = total ? Math.round(count / total * 100) : 0
+          return (
+            <div key={label} className="flex items-center gap-3">
+              <DiscrepancyBadge label={label} size="sm" showText={false} />
+              <span className="text-xs text-slate-400 w-28 flex-shrink-0 truncate">{label}</span>
+              <div className="flex-1 h-1.5 bg-white/6 rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${pct}%` }}
+                  transition={{ duration: 0.7, ease: 'easeOut', delay: 0.25 }}
+                  className={cn('h-full rounded-full', BAR_COLORS[label])}
+                />
+              </div>
+              <span className="text-xs font-semibold text-slate-300 w-8 text-right flex-shrink-0">{pct}%</span>
+              <span className="text-xs text-slate-500 w-6 text-right flex-shrink-0">{count}</span>
+            </div>
+          )
+        })}
+      </div>
+    </motion.div>
   )
 }
 
@@ -222,15 +316,20 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Stats row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <StatsCard label="Total Processed" value={rxData?.total ?? '—'} icon={FileText} delay={0} />
           <StatsCard label="Flagged" value={flagged} icon={AlertTriangle}
-            iconColor="text-amber-400" iconBg="bg-amber-500/15" sub="Discrepancies found" delay={0.05} />
+            iconColor="text-amber-400" iconBg="bg-amber-500/15"
+            sub={reports.length ? `${100 - cleanPct}% of analysed` : 'Discrepancies found'} delay={0.05} />
           <StatsCard label="Clean" value={`${cleanPct}%`} icon={CheckCircle2}
             iconColor="text-emerald-400" iconBg="bg-emerald-500/15" sub="No discrepancy" delay={0.1} />
           <StatsCard label="Processing" value={processing} icon={Clock}
             iconColor="text-indigo-400" iconBg="bg-indigo-500/15" sub={`${failed} failed`} delay={0.15} />
         </div>
+
+        {/* Discrepancy breakdown */}
+        <DiscrepancyBreakdown reports={reports} />
 
         {selected.size > 0 && (
           <motion.div
@@ -519,24 +618,19 @@ export default function DashboardPage() {
                   <span>{formatDate(rx.created_at)}</span>
                   {rx.ocr_confidence != null && (
                     <span>OCR: <span className={cn('font-semibold',
-                      rx.ocr_confidence >= 0.8 ? 'text-emerald-400' :
-                      rx.ocr_confidence >= 0.6 ? 'text-amber-400' : 'text-red-400'
+                      rx.ocr_confidence >= 0.8 ? 'text-emerald-400' : rx.ocr_confidence >= 0.6 ? 'text-amber-400' : 'text-red-400'
                     )}>{Math.round(rx.ocr_confidence * 100)}%</span></span>
                   )}
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    {report ? (
-                      <DiscrepancyBadge label={report.label as DiscrepancyLabel} size="sm" />
-                    ) : rx.status === 'processing' ? (
-                      <span className="text-xs text-indigo-400 animate-pulse">Analysing…</span>
-                    ) : <span className="text-xs text-slate-600">Pending</span>}
+                    {report ? <DiscrepancyBadge label={report.label as DiscrepancyLabel} size="sm" /> :
+                     rx.status === 'processing' ? <span className="text-xs text-indigo-400 animate-pulse">Analysing…</span> :
+                     <span className="text-xs text-slate-600">Pending</span>}
                   </div>
                   {rx.status === 'analyzed' && (
-                    <Link
-                      href={`/analysis/${rx.id}`}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-950 bg-teal-500 hover:bg-teal-400 px-3 py-1.5 rounded-lg touch-manipulation"
-                    >
+                    <Link href={`/analysis/${rx.id}`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-950 bg-teal-500 hover:bg-teal-400 px-3 py-1.5 rounded-lg">
                       View Report <ChevronRight size={12} />
                     </Link>
                   )}
@@ -544,34 +638,13 @@ export default function DashboardPage() {
               </motion.div>
             )
           })}
-
-          {analyzedSelected.length >= 2 && (
-            <button onClick={goCompare} className="w-full btn-primary py-3 text-sm">
-              <Columns2 size={14} />
-              Compare {analyzedSelected.length} Prescriptions
-            </button>
-          )}
-
-          {canDelete && selected.size > 0 && (
-            <button
-              onClick={() => setBulkDelete(true)}
-              className="w-full inline-flex items-center justify-center gap-2 bg-red-500/15 hover:bg-red-500/25 text-red-400 font-semibold px-4 py-3 rounded-xl border border-red-500/20 transition text-sm"
-            >
-              <Trash2 size={14} />
-              Delete {selected.size} selected
-            </button>
-          )}
-
           {total > 20 && (
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1}
-                className="flex-1 btn-secondary text-sm py-2">Previous</button>
-              <button onClick={() => setPage(p => p+1)} disabled={page*20>=total}
-                className="flex-1 btn-primary text-sm py-2">Next</button>
+              <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1} className="flex-1 btn-secondary text-sm py-2">Previous</button>
+              <button onClick={() => setPage(p => p+1)} disabled={page*20>=total} className="flex-1 btn-primary text-sm py-2">Next</button>
             </div>
           )}
         </div>
-
       </main>
     </div>
   )

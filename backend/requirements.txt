@@ -1,6 +1,38 @@
 # ============================================================
 # AI-Powered Prescription Discrepancy Detection System
 # Backend Requirements — Python 3.11+
+#
+# macOS / MacBook compatibility notes
+# ------------------------------------
+# This stack runs on macOS (Intel and Apple Silicon M1/M2/M3) with
+# the following caveats:
+#
+#  1. poppler (for pdf2image fallback):
+#       brew install poppler
+#     PyMuPDF is the PRIMARY PDF→image converter and needs NO system deps —
+#     so poppler is only required if you explicitly use pdf2image.
+#
+#  2. Redis (broker + result backend):
+#       brew install redis && brew services start redis
+#     Or: docker run -p 6379:6379 redis:alpine
+#
+#  3. PostgreSQL:
+#       brew install postgresql@16 && brew services start postgresql@16
+#     Or use any hosted Postgres (Supabase, Railway, Render, etc.)
+#
+#  4. Apple Silicon (M1/M2/M3) — all packages below ship universal2 or
+#     arm64 wheels on PyPI. If pip falls back to building from source:
+#       brew install openblas   # for numpy / scikit-learn
+#
+#  5. faiss-cpu — arm64 wheel available since faiss-cpu 1.7.4+.
+#     If install fails: pip install faiss-cpu --no-binary faiss-cpu
+#
+#  6. xgboost — universal2 wheel available. Falls back to source build
+#     on very old pip; upgrade pip first: pip install -U pip
+#
+#  7. psycopg2-binary — binary wheels for macOS (no libpq install needed).
+#
+# All other packages are pure-Python or have macOS wheels on PyPI.
 # ============================================================
 
 # --- Web Framework ---
@@ -18,17 +50,18 @@ bcrypt==4.1.3
 sqlalchemy==2.0.30
 alembic==1.13.1                  # DB migrations
 asyncpg==0.29.0                  # async PostgreSQL driver
-psycopg2-binary==2.9.9           # sync fallback / Alembic
+psycopg2-binary==2.9.9           # sync fallback / Alembic (binary; no libpq needed)
 
 # --- Caching / Queue ---
 redis==5.0.4
-celery==5.4.0                    # async job queue
+celery==5.4.0                    # async job queue (macOS: use solo pool for dev: --pool=solo)
 flower==2.0.1                    # Celery monitoring (optional)
 
 # --- Storage ---
 # Supabase Storage is accessed via the REST API using `requests` (no extra package needed).
 # Set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY env vars to enable it.
-# AWS S3 is the alternative — uncomment boto3 if using S3 instead.
+# Leave those vars unset to store files on local disk (dev / MacBook mode).
+# AWS S3 is the alternative — boto3 is included below.
 boto3==1.34.114                   # AWS S3 storage (also used as Supabase S3-compat fallback)
 botocore==1.34.114
 
@@ -41,7 +74,7 @@ langchain==0.2.3
 langchain-openai==0.1.8
 langchain-community==0.2.3
 langchain-core==0.2.5
-faiss-cpu==1.8.0                 # vector store (swap to faiss-gpu on GPU instances)
+faiss-cpu==1.8.0                 # vector store — arm64 wheel available; swap to faiss-gpu on GPU servers
 
 # --- RAG Retrieval ---
 pypdf==4.2.0
@@ -69,27 +102,24 @@ ftfy==6.2.0                      # fix broken unicode / OCR artifacts
 unidecode==1.3.8                 # normalize accented characters
 
 # ---------------------------------------------------------------
-# NEW LIBRARIES (added in latest upgrade)
+# PDF SUPPORT
 # ---------------------------------------------------------------
 
-# --- PDF Input Support (NEW) ---
-# Converts uploaded PDF prescriptions → images before GPT-4o Vision
-PyMuPDF==1.24.5                  # PRIMARY: fast PDF→image, zero system deps (import as fitz)
-pdf2image==1.17.0                # FALLBACK: PDF→image via poppler (needs poppler installed)
+# --- PDF Input Support ---
+# Converts uploaded PDF prescriptions → images before GPT-4o Vision.
+# PyMuPDF is PRIMARY (zero system deps — works on macOS out of the box).
+# pdf2image is the FALLBACK (needs poppler: brew install poppler on macOS).
+PyMuPDF==1.24.5                  # PRIMARY: fast PDF→image, no system deps (import as fitz)
+pdf2image==1.17.0                # FALLBACK: PDF→image via poppler
 Pillow==10.3.0                   # image manipulation — required by pdf2image + base64 encoding
 
-# --- PDF Report Generation (CHANGED: WeasyPrint → reportlab) ---
-# WeasyPrint required GTK/cairo system libraries which are unavailable on most servers.
-# reportlab is pure-Python, installs with pip, no system dependencies.
+# --- PDF Report Generation ---
+# reportlab is pure-Python — no system dependencies, works on macOS as-is.
 reportlab==4.2.2                 # PDF canvas + layout engine for audit reports
 
 # ---------------------------------------------------------------
-# REMOVED LIBRARIES
+# Data Validation
 # ---------------------------------------------------------------
-# weasyprint==62.3    — replaced by reportlab (GTK dependency removed)
-# jinja2==3.1.4       — was only used for WeasyPrint HTML templates; no longer needed
-
-# --- Data Validation (Pydantic) ---
 pydantic==2.7.3
 pydantic-settings==2.3.1
 

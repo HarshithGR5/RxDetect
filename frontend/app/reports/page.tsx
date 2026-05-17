@@ -15,6 +15,16 @@ import { formatDate, formatConfidence, cn } from '@/lib/utils'
 import type { DiscrepancyLabel, ReportListItem } from '@/lib/types'
 import toast from 'react-hot-toast'
 
+const DISC_LABELS: DiscrepancyLabel[] = ['No Discrepancy', 'Omission', 'Commission', 'Inconsistency', 'Illegibility']
+
+const BAR_COLORS: Record<DiscrepancyLabel, string> = {
+  'No Discrepancy': 'bg-emerald-500',
+  'Omission':       'bg-amber-400',
+  'Commission':     'bg-orange-400',
+  'Inconsistency':  'bg-purple-400',
+  'Illegibility':   'bg-red-400',
+}
+
 export default function ReportsPage() {
   const [page, setPage] = useState(1)
   const [generating, setGenerating] = useState<string | null>(null)
@@ -48,6 +58,9 @@ export default function ReportsPage() {
     return acc
   }, {})
 
+  const flaggedCount = items.filter(r => r.label !== 'No Discrepancy').length
+  const flaggedPct   = items.length ? Math.round(flaggedCount / items.length * 100) : 0
+
   return (
     <div className="min-h-screen bg-[#050d1a] has-bottom-nav">
       <Navbar />
@@ -70,24 +83,72 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Summary bar */}
+        {/* Summary section with counts + percentages */}
         {items.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 mb-6 sm:mb-8"
+            className="mb-6 sm:mb-8 space-y-4"
           >
-            {(
-              ['No Discrepancy', 'Omission', 'Commission', 'Inconsistency', 'Illegibility'] as DiscrepancyLabel[]
-            ).map((label) => (
-              <div key={label} className="card py-3 px-3 sm:px-4 flex items-center gap-2">
-                <DiscrepancyBadge label={label} size="sm" showText={false} />
-                <div className="min-w-0">
-                  <p className="text-base sm:text-lg font-bold text-white">{labelCounts[label] || 0}</p>
-                  <p className="text-[10px] sm:text-xs text-slate-500 leading-tight truncate">{label}</p>
+            {/* Overall flagged rate */}
+            <div className="bg-slate-900/60 border border-white/8 rounded-2xl py-3.5 px-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Overall discrepancy rate
+                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500">{items.length} reports</span>
+                  <span className={cn('text-sm font-bold', flaggedPct > 50 ? 'text-amber-400' : 'text-emerald-400')}>
+                    {flaggedPct}% flagged
+                  </span>
                 </div>
               </div>
-            ))}
+              {/* Stacked proportional bar */}
+              <div className="flex h-2 rounded-full overflow-hidden gap-px">
+                {DISC_LABELS.map(label => {
+                  const pct = items.length ? (labelCounts[label] || 0) / items.length * 100 : 0
+                  if (pct === 0) return null
+                  return (
+                    <motion.div
+                      key={label}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.8, ease: 'easeOut', delay: 0.1 }}
+                      className={cn('h-full', BAR_COLORS[label])}
+                      title={`${label}: ${Math.round(pct)}%`}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Per-label breakdown grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
+              {DISC_LABELS.map(label => {
+                const count = labelCounts[label] || 0
+                const pct   = items.length ? Math.round(count / items.length * 100) : 0
+                return (
+                  <div key={label} className="card py-3 px-3 sm:px-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <DiscrepancyBadge label={label} size="sm" showText={false} />
+                      <p className="text-[10px] sm:text-xs text-slate-500 leading-tight truncate">{label}</p>
+                    </div>
+                    <p className="text-lg sm:text-xl font-bold text-white">{count}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <div className="flex-1 h-1 bg-white/6 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ duration: 0.7, ease: 'easeOut', delay: 0.2 }}
+                          className={cn('h-full rounded-full', BAR_COLORS[label])}
+                        />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-300 flex-shrink-0">{pct}%</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </motion.div>
         )}
 
