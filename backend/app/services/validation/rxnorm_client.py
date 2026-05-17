@@ -30,8 +30,8 @@ TTL = 60 * 60 * 24 * 7  # 7 days
 
 def _get_redis():
     try:
-        import redis as redis_lib
-        return redis_lib.from_url(settings.redis_url, decode_responses=True)
+        from app.utils.redis_cache import _make_redis_client
+        return _make_redis_client(settings.redis_url, decode_responses=True)
     except Exception:
         return None
 

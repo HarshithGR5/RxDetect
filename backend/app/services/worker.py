@@ -19,6 +19,7 @@ Storage selection (automatic — no code change needed):
 """
 
 import os
+import ssl
 import tempfile
 
 from celery import Celery
@@ -34,6 +35,9 @@ celery_app = Celery(
     backend=settings.celery_result_backend,
 )
 
+_ssl_conf = {"ssl_cert_reqs": ssl.CERT_NONE}
+_is_rediss = settings.celery_broker_url.startswith("rediss://")
+
 celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
@@ -41,6 +45,10 @@ celery_app.conf.update(
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
+    broker_connection_retry_on_startup=True,
+    # redis-py 4.2+ requires ssl.CERT_NONE (enum) not the string "CERT_NONE".
+    # Only set SSL options when the URL actually uses rediss://.
+    **({"broker_use_ssl": _ssl_conf, "redis_backend_use_ssl": _ssl_conf} if _is_rediss else {}),
 )
 
 

@@ -5,6 +5,7 @@ Shared Redis client and simple cache decorator.
 import json
 import functools
 import hashlib
+import ssl
 import structlog
 from typing import Any, Callable, Optional
 from app.config import settings
@@ -14,12 +15,26 @@ log = structlog.get_logger(__name__)
 _redis_client = None
 
 
+def _make_redis_client(url: str, **kwargs):
+    """
+    Build a Redis client from a URL, correctly handling SSL for rediss:// URLs.
+
+    redis-py 4.2+ requires ssl_cert_reqs to be the ssl.CERT_NONE enum constant,
+    not the string "CERT_NONE".  Passing ssl_cert_reqs=ssl.CERT_NONE explicitly
+    avoids the `Invalid SSL Certificate Requirements Flag: CERT_NONE` error that
+    occurs when connecting to Upstash or other managed Redis services via TLS.
+    """
+    import redis as redis_lib
+    if url.startswith("rediss://"):
+        kwargs.setdefault("ssl_cert_reqs", ssl.CERT_NONE)
+    return redis_lib.from_url(url, **kwargs)
+
+
 def get_redis():
     global _redis_client
     if _redis_client is None:
         try:
-            import redis
-            _redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+            _redis_client = _make_redis_client(settings.redis_url, decode_responses=True)
             _redis_client.ping()
         except Exception as e:
             log.warning("redis_cache.connect_failed", error=str(e))
