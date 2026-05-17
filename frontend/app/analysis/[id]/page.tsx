@@ -7,7 +7,7 @@ import {
   ArrowLeft, Download, RefreshCw, FileText, Brain,
   BookOpen, ShieldCheck, ChevronDown, ChevronUp,
   CheckCircle2, AlertCircle, Send, Loader2,
-  ClipboardList, Leaf, XCircle, Minus, Lock
+  ClipboardList, Leaf, XCircle, Minus, Lock, Activity
 } from 'lucide-react'
 import Navbar from '@/components/Navbar'
 import DiscrepancyBadge from '@/components/DiscrepancyBadge'
@@ -17,6 +17,7 @@ import EvidencePanel from '@/components/EvidencePanel'
 import RuleFindings from '@/components/RuleFindings'
 import StatusPill from '@/components/StatusPill'
 import ClinicalChecklistModal from '@/components/ClinicalChecklistModal'
+import PrescriptionErrorRate from '@/components/PrescriptionErrorRate'
 import { Skeleton } from '@/components/Skeleton'
 import { prescriptionApi, reportApi, getRole } from '@/lib/api'
 import { formatDate, formatConfidence, LABEL_CONFIG, cn } from '@/lib/utils'
@@ -138,21 +139,31 @@ export default function AnalysisPage() {
         {/* Quick-stats bar */}
         {result && checklistItems.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-            <button
-              onClick={() => setShowChecklist(true)}
-              className="card p-3 sm:p-4 text-left hover:border-teal-500/30 hover:shadow-md transition group"
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <ClipboardList size={14} className="text-teal-400" />
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Checklist</span>
-              </div>
-              <p className="text-xl font-bold text-white">{checklistItems.length}</p>
-              <p className="text-xs text-slate-500 mt-0.5">
-                <span className="text-emerald-400 font-medium">{checklistYes} pass</span>
-                {checklistNo > 0 && <span className="text-red-400 font-medium"> · {checklistNo} fail</span>}
-                {checklistPartial > 0 && <span className="text-amber-400 font-medium"> · {checklistPartial} partial</span>}
-              </p>
-            </button>
+            {(() => {
+              const _na  = checklistItems.filter(i => i.result === 'na').length
+              const _no  = checklistItems.filter(i => i.result === 'no').length
+              const _par = checklistItems.filter(i => i.result === 'partial').length
+              const _ev  = checklistItems.length - _na
+              const _er  = _ev > 0 ? Math.round((_no + _par * 0.5) / _ev * 100) : 0
+              const _col  = _er === 0 ? 'text-emerald-400' : _er <= 15 ? 'text-emerald-400' : _er <= 40 ? 'text-amber-400' : _er <= 65 ? 'text-orange-400' : 'text-red-400'
+              const _lbl  = _er === 0 ? 'No errors' : _er <= 15 ? 'Low risk' : _er <= 40 ? 'Moderate' : _er <= 65 ? 'High risk' : 'Critical'
+              return (
+                <button
+                  onClick={() => setShowChecklist(true)}
+                  className="card p-3 sm:p-4 text-left hover:border-teal-500/30 hover:shadow-md transition group"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Activity size={14} className={_col} />
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Error Rate</span>
+                  </div>
+                  <p className={`text-xl font-bold font-mono ${_col}`}>{_er}%</p>
+                  <p className="text-xs mt-0.5">
+                    <span className={`font-medium ${_col}`}>{_lbl}</span>
+                    {_no > 0 && <span className="text-slate-500"> · {_no} fail</span>}
+                  </p>
+                </button>
+              )
+            })()}
             <div className="card p-3 sm:p-4">
               <div className="flex items-center gap-2 mb-1">
                 <ShieldCheck size={14} className="text-teal-400" />
@@ -363,6 +374,14 @@ export default function AnalysisPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Prescription Error Rate */}
+              {checklistItems.length > 0 && (
+                <PrescriptionErrorRate
+                  items={checklistItems}
+                  onViewChecklist={() => setShowChecklist(true)}
+                />
+              )}
 
               {/* Collapsible Rule Findings */}
               <div className={`card ${activeTab !== 'rules' ? 'hidden lg:block' : ''}`}>
