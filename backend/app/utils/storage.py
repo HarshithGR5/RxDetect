@@ -200,7 +200,14 @@ class SupabaseStorage(StorageBackend):
             payload = resp.json()
             signed = payload.get("signedURL") or payload.get("signedUrl") or ""
             if signed and signed.startswith("/"):
-                signed = self._base + signed
+                # Supabase returns a path relative to /storage/v1/, e.g.
+                # "/object/sign/{bucket}/{path}?token=..."
+                # We must prepend /storage/v1 — NOT just the bare project URL —
+                # otherwise the download hits a non-existent route and 404s.
+                if not signed.startswith("/storage/"):
+                    signed = self._base + "/storage/v1" + signed
+                else:
+                    signed = self._base + signed
             return signed or None
         except Exception as exc:
             log.error("storage.supabase.signed_url_failed", key=key, error=str(exc))
