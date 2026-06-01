@@ -13,9 +13,21 @@ missing at the time the worker runs (e.g. on a retry after a server restart)
 and a Supabase storage_key is present, the file is automatically downloaded
 from Supabase to a temp path before OCR proceeds.
 
-Storage selection (automatic — no code change needed):
-  Local only  : leave SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY unset
-  + Supabase  : set both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+Upstash / Redis optimization
+-----------------------------
+- result_expires=1800        : task results are auto-deleted after 30 min.
+                               Without this, every completed task stores a
+                               result key in Redis forever, accumulating
+                               thousands of keys that cost commands to manage.
+- visibility_timeout=43200   : 12-hour visibility window prevents phantom
+                               re-queuing of long-running tasks.
+- worker_max_tasks_per_child : recycles worker processes to prevent memory
+                               growth over time.
+- broker_heartbeat=None      : disables Celery broker heartbeats — the
+                               default fires every 2 s and sends ~30 Redis
+                               commands/minute even when completely idle.
+                               Tasks still succeed; the heartbeat only affects
+                               event monitoring (flower, etc.).
 """
 
 import os
@@ -46,6 +58,24 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     broker_connection_retry_on_startup=True,
+
+    # ── Upstash / Redis idle-optimization ─────────────────────────────────
+    # Auto-expire task results after 30 minutes.  Without this, every
+    # completed task leaves a key in Redis indefinitely, and Upstash charges
+    # a command each time Celery manages those keys.
+    result_expires=1800,
+
+    # Prevents phantom re-queuing: if a worker crashes while processing a
+    # task, Upstash won't re-enqueue it until 12 h have passed.
+    broker_transport_options={"visibility_timeout": 43200},
+
+    # Disable broker heartbeats — they send Redis commands every 2 s even
+    # when no tasks are running.  Set to None to turn them off entirely.
+    broker_heartbeat=None,
+
+    # Recycle worker processes every 50 tasks to prevent memory growth.
+    worker_max_tasks_per_child=50,
+
     # redis-py 4.2+ requires ssl.CERT_NONE (enum) not the string "CERT_NONE".
     # Only set SSL options when the URL actually uses rediss://.
     **({"broker_use_ssl": _ssl_conf, "redis_backend_use_ssl": _ssl_conf} if _is_rediss else {}),
@@ -102,7 +132,6 @@ def _ensure_local_file(local_path: str | None, storage_key: str | None, storage_
             resp = req_lib.get(signed_url, timeout=60)
             resp.raise_for_status()
 
-            # Preserve the file extension so OCR / pdf2image works correctly
             ext = os.path.splitext(storage_key)[-1] or ".jpg"
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
             tmp.write(resp.content)
@@ -160,7 +189,6 @@ def run_analysis_task(self, prescription_id: str):
 
         # -------------------------------------------------
         # 2. RESOLVE INPUT FILE
-        # Prefer local disk; fall back to Supabase download if local is missing.
         # -------------------------------------------------
         resolved_path = _ensure_local_file(rx.local_path, rx.storage_key, rx.storage_backend)
 
@@ -174,12 +202,11 @@ def run_analysis_task(self, prescription_id: str):
             _safe_update_status(db, rx, PrescriptionStatus.failed)
             return {"status": "failed", "error": "Input file not found locally or in remote storage"}
 
-        # Track if we created a temp download (so we can clean it up later)
         if resolved_path != rx.local_path:
             tmp_file_to_cleanup = resolved_path
 
         # -------------------------------------------------
-        # 3. OCR  (includes checklist generation as second GPT call)
+        # 3. OCR
         # -------------------------------------------------
         from app.services.ocr.vision_extractor import extract_prescription_fields
 
@@ -195,13 +222,11 @@ def run_analysis_task(self, prescription_id: str):
         checklist_items = ocr.get("checklist_items", [])
 
         # -------------------------------------------------
-        # 4. DISCARD INPUT FILE — no longer needed after OCR
+        # 4. DISCARD INPUT FILE
         # -------------------------------------------------
-        # Always discard the original local path (if it still exists)
         _discard_input_file(rx.local_path)
         rx.local_path = None
 
-        # Also discard any temp file we downloaded from Supabase
         if tmp_file_to_cleanup:
             _discard_input_file(tmp_file_to_cleanup)
             tmp_file_to_cleanup = None
@@ -380,7 +405,6 @@ def run_analysis_task(self, prescription_id: str):
         raise self.retry(exc=e, countdown=10)
 
     finally:
-        # Clean up any temp download we may have created
         if tmp_file_to_cleanup:
             _discard_input_file(tmp_file_to_cleanup)
         db.close()

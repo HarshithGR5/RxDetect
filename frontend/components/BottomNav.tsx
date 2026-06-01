@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Upload, FileText } from 'lucide-react'
+import { LayoutDashboard, Upload, FileText, BarChart2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -15,6 +15,7 @@ export default function BottomNav({ isViewer = false }: Props) {
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     ...(!isViewer ? [{ href: '/upload', label: 'Upload', icon: Upload }] : []),
     { href: '/reports',   label: 'Reports',   icon: FileText },
+    { href: '/results',   label: 'Results',   icon: BarChart2 },
   ]
 
   return (

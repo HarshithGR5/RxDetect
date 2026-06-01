@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
   FileText, Download, ExternalLink, RefreshCw,
-  CheckCircle2, AlertTriangle, ChevronRight, Loader2
+  CheckCircle2, AlertTriangle, ChevronRight, Loader2, TableIcon
 } from 'lucide-react'
 import Navbar from '@/components/Navbar'
 import DiscrepancyBadge from '@/components/DiscrepancyBadge'
@@ -28,6 +28,7 @@ const BAR_COLORS: Record<DiscrepancyLabel, string> = {
 export default function ReportsPage() {
   const [page, setPage] = useState(1)
   const [generating, setGenerating] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['reports', page],
@@ -37,6 +38,18 @@ export default function ReportsPage() {
 
   const items: ReportListItem[] = data?.items || []
   const total = data?.total || 0
+
+  const handleExportCsv = async () => {
+    setExporting(true)
+    try {
+      await reportApi.exportCsv()
+      toast.success('CSV exported')
+    } catch {
+      toast.error('CSV export failed')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const handleDownload = async (prescriptionId: string, hasPdf: boolean) => {
     setGenerating(prescriptionId)
@@ -76,6 +89,17 @@ export default function ReportsPage() {
             <button onClick={() => refetch()} className="btn-ghost text-sm">
               <RefreshCw size={14} />
               <span className="hidden sm:inline">Refresh</span>
+            </button>
+            <button
+              onClick={handleExportCsv}
+              disabled={exporting || total === 0}
+              className="btn-ghost text-sm"
+              title="Export all analyzed prescriptions as CSV"
+            >
+              {exporting
+                ? <Loader2 size={14} className="animate-spin" />
+                : <TableIcon size={14} />}
+              <span className="hidden sm:inline">Export CSV</span>
             </button>
             <Link href="/upload" className="btn-primary text-sm">
               New Analysis

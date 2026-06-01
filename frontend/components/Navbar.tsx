@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Upload, FileText, LogOut, Menu, X,
-  ShieldCheck, User, ChevronDown, Eye
+  ShieldCheck, User, ChevronDown, Eye, BarChart2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { authApi, clearTokens, saveRole } from '@/lib/api'
@@ -37,6 +37,7 @@ export default function Navbar() {
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, hidden: false },
     { href: '/upload',    label: 'Upload',    icon: Upload,          hidden: isViewer },
     { href: '/reports',   label: 'Reports',   icon: FileText,        hidden: false },
+    { href: '/results',   label: 'Results',   icon: BarChart2,       hidden: false },
   ].filter(n => !n.hidden)
 
   const logout = async () => {

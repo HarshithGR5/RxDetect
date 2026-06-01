@@ -206,6 +206,24 @@ export const reportApi = {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   },
+  /**
+   * Export ALL analyzed prescriptions as CSV — no row cap.
+   * Fetches the /reports/export/csv endpoint which streams every row
+   * from the database in one shot (not paginated).
+   */
+  exportCsv: async (): Promise<void> => {
+    const res = await api.get('/reports/export/csv', { responseType: 'blob' })
+    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const date = new Date().toISOString().slice(0, 10)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `rxdetect_analysis_${date}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  },
 }
 
 // ── Patients ──────────────────────────────────────────────────────────────────

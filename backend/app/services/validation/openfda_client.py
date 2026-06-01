@@ -3,6 +3,13 @@ openfda_client.py
 Wrapper around the OpenFDA drug label API.
 Retrieves dosage, warnings, contraindications, and drug interaction text
 from official FDA drug labels.
+
+Redis note
+----------
+Uses the shared get_redis() from redis_cache instead of creating a new
+connection pool on every call.  Creating a new pool per call was the
+original behaviour; it caused extra AUTH + connection commands on Upstash
+even when the app was idle (openfda is called during every analysis task).
 """
 import json
 import hashlib
@@ -20,8 +27,8 @@ TTL = 60 * 60 * 24 * 7  # 7 days
 
 def _get_redis():
     try:
-        import redis as redis_lib
-        return redis_lib.from_url(settings.redis_url, decode_responses=True)
+        from app.utils.redis_cache import get_redis
+        return get_redis()
     except Exception:
         return None
 
@@ -40,18 +47,24 @@ def get_drug_label(drug_name: str) -> Optional[dict]:
     ck = _cache_key(drug_name)
 
     if r:
-        cached = r.get(ck)
-        if cached:
-            return json.loads(cached) if cached != "NULL" else None
+        try:
+            cached = r.get(ck)
+            if cached:
+                return json.loads(cached) if cached != "NULL" else None
+        except Exception as exc:
+            log.warning("openfda_client.cache_get_failed", drug=drug_name, error=str(exc))
+            r = None
 
     label = _fetch_label(drug_name, field="openfda.generic_name")
 
-    # If generic name query fails, try substance name
     if not label:
         label = _fetch_label(drug_name, field="openfda.substance_name")
 
     if r:
-        r.setex(ck, TTL, json.dumps(label) if label else "NULL")
+        try:
+            r.setex(ck, TTL, json.dumps(label) if label else "NULL")
+        except Exception as exc:
+            log.warning("openfda_client.cache_set_failed", drug=drug_name, error=str(exc))
 
     return label
 
@@ -82,7 +95,6 @@ def extract_label_data(label: dict) -> dict:
         return {}
 
     def _first(lst) -> str:
-        """Get first non-empty string from a list."""
         if not lst:
             return ""
         for item in lst:
@@ -112,7 +124,7 @@ def validate_drug_fda(drug_name: str) -> dict:
           "dosage_and_administration": str,
           "warnings": str,
           "contraindications": str,
-          "drug_interactions": str,     <- KEY: text about known drug interactions
+          "drug_interactions": str,
           "indications_and_usage": str,
           "adverse_reactions": str,
           "use_in_specific_populations": str,

@@ -2,12 +2,19 @@
 reports.py — API v1
 PDF report generation and streaming download.
 PDFs are generated in-memory and streamed directly — no disk storage needed.
+
+CSV export
+----------
+GET /reports/export/csv — streams ALL analyzed prescriptions as a CSV file
+with no row cap.  The list endpoints cap at 100 per page; this endpoint
+fetches every row in one query so users can download a complete dataset.
 """
+import csv
+import io
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-import io
 
 from app.dependencies import get_current_user, get_db
 from app.models import DiscrepancyReport, Prescription, PrescriptionStatus, User
@@ -88,8 +95,6 @@ def _stream_pdf(pdf_bytes: bytes, prescription_id: str) -> StreamingResponse:
 
 # =========================================================
 # GENERATE + STREAM REPORT  (POST)
-# Generates PDF in memory and streams it immediately.
-# No file is saved to disk.
 # =========================================================
 
 @router.post("/generate/{prescription_id}")
@@ -99,11 +104,9 @@ def generate_report(
     current_user: User = Depends(get_current_user),
 ):
     """Generate the PDF report in memory and stream it to the client."""
-
     rx, report = _get_analyzed_prescription(db, prescription_id)
     pdf_bytes  = _generate_pdf(rx, report)
 
-    # Update timestamp so the API reflects when it was last generated
     report.pdf_generated_at = datetime.utcnow()
     db.commit()
 
@@ -112,7 +115,6 @@ def generate_report(
 
 # =========================================================
 # DOWNLOAD REPORT  (GET)
-# Also generates in memory — no disk file needed.
 # =========================================================
 
 @router.get("/download/{prescription_id}")
@@ -122,10 +124,91 @@ def download_report(
     current_user: User = Depends(get_current_user),
 ):
     """Stream the PDF report, generating it on-the-fly."""
-
     rx, report = _get_analyzed_prescription(db, prescription_id)
     pdf_bytes  = _generate_pdf(rx, report)
     return _stream_pdf(pdf_bytes, prescription_id)
+
+
+# =========================================================
+# EXPORT ALL REPORTS AS CSV  (GET)
+# No pagination — exports every analyzed prescription at once.
+# =========================================================
+
+@router.get("/export/csv")
+def export_csv(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Stream ALL analyzed prescriptions as a CSV file — no row cap.
+
+    Columns: Prescription ID, Filename, OCR Confidence, Discrepancy Label,
+             Confidence, Rule Label, LLM Label, ML Label, Consensus,
+             LLM Reason (first 300 chars), Pharmacist Label, Is Correct,
+             Created At.
+
+    Admins see all records; pharmacists/viewers see only their own.
+    The file uses UTF-8 BOM (utf-8-sig) so Excel opens it correctly.
+    """
+    q = (
+        db.query(DiscrepancyReport, Prescription)
+        .join(Prescription, DiscrepancyReport.prescription_id == Prescription.id)
+        .filter(Prescription.deleted_at.is_(None))
+    )
+
+    if current_user.role != "admin":
+        q = q.filter(Prescription.uploaded_by == current_user.id)
+
+    rows = q.order_by(DiscrepancyReport.created_at.desc()).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+
+    writer.writerow([
+        "Prescription ID",
+        "Filename",
+        "OCR Confidence",
+        "Discrepancy Label",
+        "Confidence",
+        "Rule Label",
+        "LLM Label",
+        "ML Label",
+        "Consensus",
+        "LLM Reason",
+        "Pharmacist Label",
+        "Is Correct",
+        "Created At",
+    ])
+
+    for report, rx in rows:
+        writer.writerow([
+            str(rx.id),
+            rx.original_filename or "",
+            f"{rx.ocr_confidence:.3f}" if rx.ocr_confidence is not None else "",
+            report.label or "",
+            f"{report.confidence:.3f}" if report.confidence is not None else "",
+            report.rule_label or "",
+            report.llm_label or "",
+            report.ml_label or "",
+            report.consensus or "",
+            (report.llm_reason or "")[:300].replace("\n", " "),
+            report.pharmacist_label or "",
+            str(report.is_correct) if report.is_correct is not None else "",
+            report.created_at.isoformat(),
+        ])
+
+    filename = f"rxdetect_analysis_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.csv"
+    csv_bytes = buf.getvalue().encode("utf-8-sig")  # BOM for Excel compatibility
+
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv; charset=utf-8-sig",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length":      str(len(csv_bytes)),
+            "Cache-Control":       "no-store",
+        },
+    )
 
 
 # =========================================================
@@ -139,7 +222,8 @@ def list_reports(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List reports."""
+    """List reports (paginated, default 20/page, max 100)."""
+    page_size = min(page_size, 100)
 
     q = (
         db.query(DiscrepancyReport)
@@ -170,7 +254,7 @@ def list_reports(
                 "label":           r.label,
                 "confidence":      r.confidence,
                 "consensus":       r.consensus,
-                "pdf_ready":       True,   # always generatable on-demand
+                "pdf_ready":       True,
                 "created_at":      r.created_at.isoformat(),
             }
             for r in items
